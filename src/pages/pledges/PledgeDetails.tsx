@@ -184,7 +184,7 @@ const PledgeDetails: React.FC = () => {
                   <p className="text-sm text-muted-foreground">Assigned Follow-Up</p>
                   <p className="font-medium text-foreground">
                     {typeof pledge.assignedFollowUp === 'object'
-                      ? pledge.assignedFollowUp.name
+                      ? (pledge.assignedFollowUp.first_name || pledge.assignedFollowUp.name || 'Unknown')
                       : 'Not assigned'}
                   </p>
                 </div>

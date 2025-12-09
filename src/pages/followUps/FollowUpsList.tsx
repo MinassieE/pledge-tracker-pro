@@ -36,11 +36,11 @@ const FollowUpsList: React.FC = () => {
   ];
 
   const mockFollowUps: (FollowUpUser & { adminName?: string })[] = [
-    { _id: '1', name: 'Marta Solomon', email: 'marta@example.com', phone: '+251911234567', role: 'followUp' as const, assignedAdmin: '1', createdAt: '2024-01-01' },
-    { _id: '2', name: 'Dawit Hailu', email: 'dawit@example.com', phone: '+251922345678', role: 'followUp' as const, assignedAdmin: '1', createdAt: '2024-01-02' },
-    { _id: '3', name: 'Sara Tadesse', email: 'sara@example.com', phone: '+251933456789', role: 'followUp' as const, assignedAdmin: '2', createdAt: '2024-01-03' },
-    { _id: '4', name: 'Yonas Berhane', email: 'yonas@example.com', phone: '+251944567890', role: 'followUp' as const, assignedAdmin: '2', createdAt: '2024-01-04' },
-    { _id: '5', name: 'Helen Gebre', email: 'helen@example.com', phone: '+251955678901', role: 'followUp' as const, assignedAdmin: '3', createdAt: '2024-01-05' },
+    { _id: '1', first_name: 'Marta', name: 'Marta Solomon', email: 'marta@example.com', phone: '+251911234567', role: 'followUp' as const, assignedAdmin: '1', createdAt: '2024-01-01' },
+    { _id: '2', first_name: 'Dawit', name: 'Dawit Hailu', email: 'dawit@example.com', phone: '+251922345678', role: 'followUp' as const, assignedAdmin: '1', createdAt: '2024-01-02' },
+    { _id: '3', first_name: 'Sara', name: 'Sara Tadesse', email: 'sara@example.com', phone: '+251933456789', role: 'followUp' as const, assignedAdmin: '2', createdAt: '2024-01-03' },
+    { _id: '4', first_name: 'Yonas', name: 'Yonas Berhane', email: 'yonas@example.com', phone: '+251944567890', role: 'followUp' as const, assignedAdmin: '2', createdAt: '2024-01-04' },
+    { _id: '5', first_name: 'Helen', name: 'Helen Gebre', email: 'helen@example.com', phone: '+251955678901', role: 'followUp' as const, assignedAdmin: '3', createdAt: '2024-01-05' },
   ].map(f => ({
     ...f,
     adminName: mockAdmins.find(a => a._id === f.assignedAdmin)?.name,
@@ -85,7 +85,7 @@ const FollowUpsList: React.FC = () => {
   const handleDelete = (user: FollowUpUser) => {
     toast({
       title: 'Follow-up user deleted',
-      description: `${user.name} has been removed.`,
+      description: `${user.name || user.first_name} has been removed.`,
     });
   };
 
@@ -97,7 +97,7 @@ const FollowUpsList: React.FC = () => {
   const openEditModal = (user: FollowUpUser) => {
     setSelectedFollowUp(user);
     setFormData({
-      name: user.name,
+      name: user.name || user.first_name || '',
       email: user.email,
       phone: user.phone || '',
       password: '',
@@ -114,10 +114,10 @@ const FollowUpsList: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-success/10 flex items-center justify-center">
             <span className="text-sm font-medium text-success">
-              {row.original.name.charAt(0)}
+              {(row.original.name || row.original.first_name || '?').charAt(0)}
             </span>
           </div>
-          <span className="font-medium text-foreground">{row.original.name}</span>
+          <span className="font-medium text-foreground">{row.original.name || row.original.first_name}</span>
         </div>
       ),
     },

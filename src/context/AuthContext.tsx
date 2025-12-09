@@ -35,41 +35,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
     if (storedToken) {
       try {
         const decoded = jwtDecode<DecodedToken>(storedToken);
         if (decoded.exp * 1000 > Date.now()) {
           setToken(storedToken);
           setRole(decoded.role);
-          // Reconstruct basic user info from token
-          setUser({
-            _id: decoded.userId,
-            role: decoded.role,
-            name: '',
-            email: '',
-            createdAt: '',
-          });
+          
+          // Load user from localStorage if available
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+          } else {
+            // Fallback: reconstruct basic user info from token
+            setUser({
+              id: decoded.userId,
+              first_name: '',
+              email: '',
+              role: decoded.role,
+            });
+          }
         } else {
+          // Token expired
           localStorage.removeItem('token');
+          localStorage.removeItem('user');
         }
       } catch (error) {
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
       }
     }
     setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await authApi.login({ email, password });
-    if (response.success && response.token) {
-      localStorage.setItem('token', response.token);
-      setToken(response.token);
-      setUser(response.user);
-      const decoded = jwtDecode<DecodedToken>(response.token);
-      setRole(decoded.role);
-    } else {
-      throw new Error('Login failed');
-    }
+    const { token, user } = await authApi.login({ email, password });
+    
+    // Store in localStorage
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    
+    // Update state
+    setToken(token);
+    setUser(user);
+    setRole(user.role);
   };
 
   const logout = () => {

@@ -23,10 +23,10 @@ const AdminsList: React.FC = () => {
 
   // Mock data for demo
   const mockAdmins: Admin[] = [
-    { _id: '1', name: 'Solomon Hailu', email: 'solomon@example.com', phone: '+251911111111', role: 'admin', createdAt: '2024-01-01' },
-    { _id: '2', name: 'Tigist Mengistu', email: 'tigist@example.com', phone: '+251922222222', role: 'admin', createdAt: '2024-01-02' },
-    { _id: '3', name: 'Bereket Tadesse', email: 'bereket@example.com', phone: '+251933333333', role: 'admin', createdAt: '2024-01-03' },
-    { _id: '4', name: 'Almaz Yohannes', email: 'almaz@example.com', phone: '+251944444444', role: 'admin', createdAt: '2024-01-04' },
+    { _id: '1', first_name: 'Solomon', name: 'Solomon Hailu', email: 'solomon@example.com', phone: '+251911111111', role: 'admin', createdAt: '2024-01-01' },
+    { _id: '2', first_name: 'Tigist', name: 'Tigist Mengistu', email: 'tigist@example.com', phone: '+251922222222', role: 'admin', createdAt: '2024-01-02' },
+    { _id: '3', first_name: 'Bereket', name: 'Bereket Tadesse', email: 'bereket@example.com', phone: '+251933333333', role: 'admin', createdAt: '2024-01-03' },
+    { _id: '4', first_name: 'Almaz', name: 'Almaz Yohannes', email: 'almaz@example.com', phone: '+251944444444', role: 'admin', createdAt: '2024-01-04' },
   ];
 
   const handleCreate = () => {
@@ -68,7 +68,7 @@ const AdminsList: React.FC = () => {
   const handleDelete = (admin: Admin) => {
     toast({
       title: 'Admin deleted',
-      description: `${admin.name} has been removed.`,
+      description: `${admin.name || admin.first_name} has been removed.`,
     });
   };
 
@@ -79,7 +79,7 @@ const AdminsList: React.FC = () => {
 
   const openEditModal = (admin: Admin) => {
     setSelectedAdmin(admin);
-    setFormData({ name: admin.name, email: admin.email, phone: admin.phone || '', password: '' });
+    setFormData({ name: admin.name || admin.first_name || '', email: admin.email, phone: admin.phone || '', password: '' });
     setIsEditModalOpen(true);
   };
 
@@ -91,10 +91,10 @@ const AdminsList: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
             <span className="text-sm font-medium text-primary">
-              {row.original.name.charAt(0)}
+              {(row.original.name || row.original.first_name || '?').charAt(0)}
             </span>
           </div>
-          <span className="font-medium text-foreground">{row.original.name}</span>
+          <span className="font-medium text-foreground">{row.original.name || row.original.first_name}</span>
         </div>
       ),
     },

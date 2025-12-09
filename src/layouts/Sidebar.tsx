@@ -145,12 +145,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-sidebar-accent flex items-center justify-center">
               <span className="text-sm font-medium text-sidebar-foreground">
-                {user?.name?.charAt(0) || 'U'}
+                {user?.first_name?.charAt(0) || user?.name?.charAt(0) || 'U'}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {user?.name || 'User'}
+                {user?.first_name || user?.name || 'User'}
               </p>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary">
                 {getRoleBadge()}
