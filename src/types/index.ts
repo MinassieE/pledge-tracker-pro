@@ -1,12 +1,16 @@
 export type UserRole = 'superAdmin' | 'admin' | 'followUp';
 
 export interface User {
-  _id: string;
-  name: string;
+  id?: string;
+  _id?: string;
+  first_name?: string;
+  middle_name?: string;
+  name?: string;
   email: string;
   phone?: string;
   role: UserRole;
-  createdAt: string;
+  assigned_pledges?: string[];
+  createdAt?: string;
   updatedAt?: string;
 }
 
@@ -109,10 +113,20 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface AuthUserData {
+  id: string;
+  first_name: string;
+  middle_name?: string;
+  email: string;
+  role: UserRole;
+  assigned_pledges: string[];
+  token: string;
+}
+
 export interface AuthResponse {
   success: boolean;
-  token: string;
-  user: User;
+  message: string;
+  data: AuthUserData;
 }
 
 export interface DecodedToken {
