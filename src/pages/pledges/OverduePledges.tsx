@@ -1,54 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
 import { Eye, Phone, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { pledgesApi } from '@/api/pledges';
 import { Pledge } from '@/types';
 
 const OverduePledges: React.FC = () => {
-  // Mock data for demo
-  const mockPledges: Pledge[] = [
-    {
-      _id: '1',
-      fullName: 'Fatuma Ahmed',
-      phone: '+251922345678',
-      pledgeType: 'cash',
-      amount: 1000,
-      currency: 'USD',
-      promisedDate: '2024-01-10',
-      status: 'overdue',
-      payments: [],
-      totalPaid: 0,
-      createdAt: '2024-01-02',
-    },
-    {
-      _id: '2',
-      fullName: 'Yonas Bekele',
-      phone: '+251955678901',
-      pledgeType: 'cash',
-      amount: 30000,
-      currency: 'ETB',
-      promisedDate: '2024-01-05',
-      status: 'overdue',
-      payments: [],
-      totalPaid: 10000,
-      createdAt: '2024-01-01',
-    },
-    {
-      _id: '3',
-      fullName: 'Hana Girma',
-      phone: '+251912345678',
-      pledgeType: 'material',
-      materialType: 'Office Equipment',
-      promisedDate: '2024-01-08',
-      status: 'overdue',
-      payments: [],
-      totalPaid: 0,
-      createdAt: '2024-01-03',
-    },
-  ];
+  const { data: pledges = [], isLoading, error } = useQuery({
+    queryKey: ['overduePledges'],
+    queryFn: pledgesApi.getOverdue,
+  });
 
   const formatCurrency = (value: number | undefined, currency: string = 'ETB') => {
     if (!value) return '-';
@@ -73,33 +39,44 @@ const OverduePledges: React.FC = () => {
       header: 'Name',
       cell: ({ row }) => (
         <div>
-          <p className="font-medium text-foreground">{row.original.fullName}</p>
-          <p className="text-xs text-muted-foreground">{row.original.phone}</p>
+          <p className="font-medium text-foreground">
+            {row.original.fullName || row.original.full_name || 'N/A'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {row.original.phone || row.original.phone_number || 'N/A'}
+          </p>
         </div>
       ),
     },
     {
       accessorKey: 'amount',
       header: 'Amount',
-      cell: ({ row }) =>
-        row.original.pledgeType === 'cash'
+      cell: ({ row }) => {
+        const pledgeType = row.original.pledgeType || row.original.pledge_type;
+        return pledgeType === 'cash'
           ? formatCurrency(row.original.amount, row.original.currency)
-          : row.original.materialType || '-',
+          : row.original.materialType || row.original.material_type || '-';
+      },
     },
     {
       accessorKey: 'promisedDate',
       header: 'Due Date',
-      cell: ({ row }) => (
-        <span className="text-destructive font-medium">
-          {new Date(row.original.promisedDate).toLocaleDateString()}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const date = row.original.promisedDate || row.original.promised_date;
+        return (
+          <span className="text-destructive font-medium">
+            {date ? new Date(date).toLocaleDateString() : 'N/A'}
+          </span>
+        );
+      },
     },
     {
       id: 'daysOverdue',
       header: 'Days Overdue',
       cell: ({ row }) => {
-        const days = getDaysOverdue(row.original.promisedDate);
+        const date = row.original.promisedDate || row.original.promised_date;
+        if (!date) return '-';
+        const days = getDaysOverdue(date);
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive">
             {days} days
@@ -110,10 +87,12 @@ const OverduePledges: React.FC = () => {
     {
       accessorKey: 'totalPaid',
       header: 'Paid',
-      cell: ({ row }) =>
-        row.original.pledgeType === 'cash'
-          ? formatCurrency(row.original.totalPaid, row.original.currency)
-          : '-',
+      cell: ({ row }) => {
+        const pledgeType = row.original.pledgeType || row.original.pledge_type;
+        return pledgeType === 'cash'
+          ? formatCurrency(row.original.totalPaid || row.original.total_paid, row.original.currency)
+          : '-';
+      },
     },
     {
       id: 'actions',
@@ -133,6 +112,22 @@ const OverduePledges: React.FC = () => {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load overdue pledges. Please try again.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 fade-in">
       {/* Alert Banner */}
@@ -151,16 +146,22 @@ const OverduePledges: React.FC = () => {
       <div>
         <h2 className="text-2xl font-bold text-foreground">Overdue Pledges</h2>
         <p className="text-muted-foreground">
-          {mockPledges.length} pledge(s) require immediate attention
+          {pledges.length} pledge(s) require immediate attention
         </p>
       </div>
 
       {/* Table */}
-      <DataTable
-        columns={columns}
-        data={mockPledges}
-        searchPlaceholder="Search overdue pledges..."
-      />
+      {pledges.length > 0 ? (
+        <DataTable
+          columns={columns}
+          data={pledges}
+          searchPlaceholder="Search overdue pledges..."
+        />
+      ) : (
+        <div className="stat-card text-center py-12">
+          <p className="text-muted-foreground">No overdue pledges found.</p>
+        </div>
+      )}
     </div>
   );
 };

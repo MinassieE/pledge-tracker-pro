@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Edit,
@@ -18,36 +19,61 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { toast } from '@/hooks/use-toast';
+import { pledgesApi, UpdatePledgePayload } from '@/api/pledges';
+import { useAuth } from '@/context/AuthContext';
 import { Pledge, Payment } from '@/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const PledgeDetails: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isFollowUp = user?.role === 'followUp';
+
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [remarkComment, setRemarkComment] = useState('');
 
-  // Mock pledge data
-  const pledge: Pledge = {
-    _id: id || '1',
-    fullName: 'Abebe Kebede',
-    phone: '+251911234567',
-    address: 'Bole, Addis Ababa, Ethiopia',
-    pledgeType: 'cash',
-    amount: 50000,
-    currency: 'ETB',
-    promisedDate: '2024-01-20',
-    status: 'partial',
-    notes: 'Committed to pay in two installments. First payment received on January 5th.',
-    payments: [
-      { _id: '1', amount: 25000, currency: 'ETB', paidAt: '2024-01-05', notes: 'First installment' },
-      { _id: '2', amount: 10000, currency: 'ETB', paidAt: '2024-01-12', notes: 'Second payment' },
-    ],
-    totalPaid: 35000,
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-12',
-  };
+  // Fetch pledge based on role
+  const { data: pledge, isLoading, error } = useQuery({
+    queryKey: ['pledge', id],
+    queryFn: () => isFollowUp ? pledgesApi.getMyPledgeById(id!) : pledgesApi.getById(id!).then(res => res.data),
+    enabled: !!id,
+  });
+
+  // Update mutation for follow-up user
+  const updateMutation = useMutation({
+    mutationFn: (data: UpdatePledgePayload) => pledgesApi.updateMyPledge(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pledge', id] });
+      queryClient.invalidateQueries({ queryKey: ['myPledges'] });
+      queryClient.invalidateQueries({ queryKey: ['overduePledges'] });
+      toast({
+        title: 'Success',
+        description: 'Pledge updated successfully.',
+      });
+      setIsPaymentModalOpen(false);
+      setPaymentAmount('');
+      setRemarkComment('');
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update pledge. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const formatCurrency = (value: number, currency: string = 'ETB') => {
     return new Intl.NumberFormat('en-US', {
@@ -56,9 +82,6 @@ const PledgeDetails: React.FC = () => {
       minimumFractionDigits: 0,
     }).format(value);
   };
-
-  const remainingBalance = (pledge.amount || 0) - pledge.totalPaid;
-  const progressPercentage = pledge.amount ? (pledge.totalPaid / pledge.amount) * 100 : 0;
 
   const handleAddPayment = () => {
     if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
@@ -70,15 +93,55 @@ const PledgeDetails: React.FC = () => {
       return;
     }
 
-    // API call would go here
-    toast({
-      title: 'Payment recorded',
-      description: `Payment of ${formatCurrency(parseFloat(paymentAmount), pledge.currency)} has been recorded.`,
-    });
-    setIsPaymentModalOpen(false);
-    setPaymentAmount('');
-    setPaymentNotes('');
+    const payload: UpdatePledgePayload = {
+      payment: {
+        amount: parseFloat(paymentAmount),
+        method: paymentMethod,
+      },
+    };
+
+    if (remarkComment.trim()) {
+      payload.remark = { comment: remarkComment.trim() };
+    }
+
+    updateMutation.mutate(payload);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error || !pledge) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load pledge details. Please try again.</p>
+        <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
+          Go Back
+        </Button>
+      </div>
+    );
+  }
+
+  // Handle both camelCase and snake_case from backend
+  const fullName = pledge.fullName || pledge.full_name || 'N/A';
+  const phone = pledge.phone || pledge.phone_number || 'N/A';
+  const address = pledge.address || 'N/A';
+  const pledgeType = pledge.pledgeType || pledge.pledge_type || 'cash';
+  const amount = pledge.amount || 0;
+  const currency = pledge.currency || 'ETB';
+  const promisedDate = pledge.promisedDate || pledge.promised_date;
+  const materialType = pledge.materialType || pledge.material_type;
+  const totalPaid = pledge.totalPaid || pledge.total_paid || 0;
+  const payments = pledge.payments || [];
+  const notes = pledge.notes || '';
+  const remarks = pledge.remarks || [];
+
+  const remainingBalance = amount - totalPaid;
+  const progressPercentage = amount > 0 ? (totalPaid / amount) * 100 : 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 fade-in">
@@ -90,23 +153,25 @@ const PledgeDetails: React.FC = () => {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-foreground">{pledge.fullName}</h2>
-              <StatusBadge status={pledge.status} />
+              <h2 className="text-2xl font-bold text-foreground">{fullName}</h2>
+              <StatusBadge status={pledge.status || 'pending'} />
             </div>
             <p className="text-muted-foreground">Pledge ID: {pledge._id}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to={`/pledges/${pledge._id}/edit`}>
-            <Button variant="outline">
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
+        {!isFollowUp && (
+          <div className="flex items-center gap-2">
+            <Link to={`/pledges/${pledge._id}/edit`}>
+              <Button variant="outline">
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            </Link>
+            <Button variant="destructive" size="icon">
+              <Trash2 className="h-4 w-4" />
             </Button>
-          </Link>
-          <Button variant="destructive" size="icon">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -122,17 +187,17 @@ const PledgeDetails: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Phone</p>
-                  <p className="font-medium text-foreground">{pledge.phone}</p>
+                  <p className="font-medium text-foreground">{phone}</p>
                 </div>
               </div>
-              {pledge.address && (
+              {address !== 'N/A' && (
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary/10">
                     <MapPin className="h-4 w-4 text-primary" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Address</p>
-                    <p className="font-medium text-foreground">{pledge.address}</p>
+                    <p className="font-medium text-foreground">{address}</p>
                   </div>
                 </div>
               )}
@@ -149,7 +214,7 @@ const PledgeDetails: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Type</p>
-                  <p className="font-medium text-foreground capitalize">{pledge.pledgeType}</p>
+                  <p className="font-medium text-foreground capitalize">{pledgeType}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -159,9 +224,9 @@ const PledgeDetails: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Pledged Amount</p>
                   <p className="font-medium text-foreground">
-                    {pledge.pledgeType === 'cash'
-                      ? formatCurrency(pledge.amount || 0, pledge.currency)
-                      : pledge.materialType}
+                    {pledgeType === 'cash'
+                      ? formatCurrency(amount, currency)
+                      : materialType || 'Material'}
                   </p>
                 </div>
               </div>
@@ -172,7 +237,7 @@ const PledgeDetails: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Promised Date</p>
                   <p className="font-medium text-foreground">
-                    {new Date(pledge.promisedDate).toLocaleDateString()}
+                    {promisedDate ? new Date(promisedDate).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
               </div>
@@ -184,17 +249,17 @@ const PledgeDetails: React.FC = () => {
                   <p className="text-sm text-muted-foreground">Assigned Follow-Up</p>
                   <p className="font-medium text-foreground">
                     {typeof pledge.assignedFollowUp === 'object'
-                      ? (pledge.assignedFollowUp.first_name || pledge.assignedFollowUp.name || 'Unknown')
+                      ? (pledge.assignedFollowUp?.first_name || pledge.assignedFollowUp?.name || 'Unknown')
                       : 'Not assigned'}
                   </p>
                 </div>
               </div>
             </div>
 
-            {pledge.notes && (
+            {notes && (
               <div className="mt-4 p-4 rounded-lg bg-muted/50">
                 <p className="text-sm text-muted-foreground mb-1">Notes</p>
-                <p className="text-foreground">{pledge.notes}</p>
+                <p className="text-foreground">{notes}</p>
               </div>
             )}
           </div>
@@ -203,7 +268,7 @@ const PledgeDetails: React.FC = () => {
           <div className="stat-card">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-foreground">Payment History</h3>
-              {pledge.pledgeType === 'cash' && (
+              {pledgeType === 'cash' && (
                 <Button size="sm" onClick={() => setIsPaymentModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Payment
@@ -211,21 +276,24 @@ const PledgeDetails: React.FC = () => {
               )}
             </div>
 
-            {pledge.payments.length > 0 ? (
+            {payments.length > 0 ? (
               <div className="space-y-3">
-                {pledge.payments.map((payment, index) => (
+                {payments.map((payment: Payment, index: number) => (
                   <div
-                    key={payment._id}
+                    key={payment._id || index}
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                   >
                     <div>
                       <p className="font-medium text-foreground">
-                        {formatCurrency(payment.amount, payment.currency)}
+                        {formatCurrency(payment.amount, payment.currency || currency)}
                       </p>
-                      <p className="text-sm text-muted-foreground">{payment.notes}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {payment.method && `Method: ${payment.method}`}
+                        {payment.notes && ` - ${payment.notes}`}
+                      </p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(payment.paidAt).toLocaleDateString()}
+                      {payment.paidAt ? new Date(payment.paidAt).toLocaleDateString() : 'N/A'}
                     </p>
                   </div>
                 ))}
@@ -234,12 +302,34 @@ const PledgeDetails: React.FC = () => {
               <p className="text-muted-foreground text-center py-4">No payments recorded yet.</p>
             )}
           </div>
+
+          {/* Remarks History */}
+          {remarks.length > 0 && (
+            <div className="stat-card">
+              <h3 className="text-lg font-semibold text-foreground mb-4">Remarks</h3>
+              <div className="space-y-3">
+                {remarks.map((remark: any, index: number) => (
+                  <div
+                    key={index}
+                    className="p-3 rounded-lg bg-muted/50"
+                  >
+                    <p className="text-foreground">{remark.comment}</p>
+                    {remark.createdAt && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(remark.createdAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Payment Summary */}
-          {pledge.pledgeType === 'cash' && (
+          {pledgeType === 'cash' && (
             <div className="stat-card">
               <h3 className="text-lg font-semibold text-foreground mb-4">Payment Summary</h3>
               <div className="space-y-4">
@@ -262,19 +352,19 @@ const PledgeDetails: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Pledged</span>
                     <span className="font-medium text-foreground">
-                      {formatCurrency(pledge.amount || 0, pledge.currency)}
+                      {formatCurrency(amount, currency)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Paid</span>
                     <span className="font-medium text-success">
-                      {formatCurrency(pledge.totalPaid, pledge.currency)}
+                      {formatCurrency(totalPaid, currency)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-border">
                     <span className="text-sm font-medium text-foreground">Remaining</span>
                     <span className="font-bold text-destructive">
-                      {formatCurrency(remainingBalance, pledge.currency)}
+                      {formatCurrency(remainingBalance, currency)}
                     </span>
                   </div>
                 </div>
@@ -291,7 +381,7 @@ const PledgeDetails: React.FC = () => {
                 <div>
                   <p className="text-sm font-medium text-foreground">Created</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(pledge.createdAt).toLocaleDateString()}
+                    {pledge.createdAt ? new Date(pledge.createdAt).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
               </div>
@@ -306,15 +396,17 @@ const PledgeDetails: React.FC = () => {
                   </div>
                 </div>
               )}
-              <div className="flex items-center gap-3">
-                <div className="h-2 w-2 rounded-full bg-warning" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Due Date</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(pledge.promisedDate).toLocaleDateString()}
-                  </p>
+              {promisedDate && (
+                <div className="flex items-center gap-3">
+                  <div className="h-2 w-2 rounded-full bg-warning" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Due Date</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(promisedDate).toLocaleDateString()}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -331,13 +423,15 @@ const PledgeDetails: React.FC = () => {
             <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddPayment}>Record Payment</Button>
+            <Button onClick={handleAddPayment} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? 'Recording...' : 'Record Payment'}
+            </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="paymentAmount">Amount ({pledge.currency})</Label>
+            <Label htmlFor="paymentAmount">Amount ({currency})</Label>
             <Input
               id="paymentAmount"
               type="number"
@@ -346,16 +440,30 @@ const PledgeDetails: React.FC = () => {
               onChange={(e) => setPaymentAmount(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Remaining balance: {formatCurrency(remainingBalance, pledge.currency)}
+              Remaining balance: {formatCurrency(remainingBalance, currency)}
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="paymentNotes">Notes (optional)</Label>
+            <Label htmlFor="paymentMethod">Payment Method</Label>
+            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                <SelectItem value="check">Check</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="remarkComment">Remark (optional)</Label>
             <Textarea
-              id="paymentNotes"
+              id="remarkComment"
               placeholder="Add any notes about this payment..."
-              value={paymentNotes}
-              onChange={(e) => setPaymentNotes(e.target.value)}
+              value={remarkComment}
+              onChange={(e) => setRemarkComment(e.target.value)}
             />
           </div>
         </div>
