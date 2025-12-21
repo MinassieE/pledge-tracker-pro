@@ -27,30 +27,49 @@ export type PledgeType = 'cash' | 'material';
 export type PledgeStatus = 'pending' | 'paid' | 'partial' | 'overdue';
 
 export interface Payment {
-  _id: string;
+  _id?: string;
   amount: number;
-  currency: 'ETB' | 'USD';
-  paidAt: string;
+  currency?: 'ETB' | 'USD';
+  paidAt?: string;
+  paid_at?: string;
   notes?: string;
+  method?: string;
+}
+
+export interface Remark {
+  comment: string;
+  createdAt?: string;
+  created_at?: string;
 }
 
 export interface Pledge {
   _id: string;
-  fullName: string;
-  phone: string;
+  // Support both camelCase and snake_case from backend
+  fullName?: string;
+  full_name?: string;
+  phone?: string;
+  phone_number?: string;
   address?: string;
-  pledgeType: PledgeType;
+  pledgeType?: PledgeType;
+  pledge_type?: PledgeType;
   amount?: number;
   currency?: 'ETB' | 'USD';
   materialType?: string;
-  promisedDate: string;
-  status: PledgeStatus;
+  material_type?: string;
+  promisedDate?: string;
+  promised_date?: string;
+  status?: PledgeStatus;
   assignedFollowUp?: string | FollowUpUser;
+  assigned_follow_up?: string | FollowUpUser;
   notes?: string;
-  payments: Payment[];
-  totalPaid: number;
-  createdAt: string;
+  payments?: Payment[];
+  remarks?: Remark[];
+  totalPaid?: number;
+  total_paid?: number;
+  createdAt?: string;
+  created_at?: string;
   updatedAt?: string;
+  updated_at?: string;
 }
 
 export interface CollectionStats {
