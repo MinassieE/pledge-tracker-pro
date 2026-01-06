@@ -3,7 +3,7 @@ import { AuthResponse, LoginCredentials, User } from '@/types';
 
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<{ token: string; user: User }> => {
-    const response = await api.post<AuthResponse>('/auth/login', credentials);
+    const response = await api.post<AuthResponse>('/auth/admin-login', credentials);
     
     if (response.data.success && response.data.data?.token) {
       const { token, ...userData } = response.data.data;
