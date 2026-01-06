@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   UserCheck,
   FileText,
@@ -12,23 +13,35 @@ import {
 import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { pledgesApi } from '@/api/pledges';
+import { followUpsApi } from '@/api/followUps';
+import { Pledge } from '@/types';
 
 const AdminDashboard: React.FC = () => {
-  // Mock data for demo
-  const mockStats = {
-    assignedFollowUps: 12,
-    totalPledges: 89,
-    totalCollectedETB: 1250000,
-    pendingCount: 28,
-    overdueCount: 7,
-  };
+  // Fetch all pledges
+  const { data: pledges = [], isLoading: pledgesLoading } = useQuery({
+    queryKey: ['allPledges'],
+    queryFn: pledgesApi.getAll,
+  });
 
-  const mockRecentPledges = [
-    { _id: '1', fullName: 'Abebe Kebede', amount: 50000, currency: 'ETB', status: 'paid' as const, followUp: 'Marta S.' },
-    { _id: '2', fullName: 'Fatuma Ahmed', amount: 1000, currency: 'USD', status: 'pending' as const, followUp: 'Dawit H.' },
-    { _id: '3', fullName: 'Dawit Haile', amount: 25000, currency: 'ETB', status: 'partial' as const, followUp: 'Sara T.' },
-    { _id: '4', fullName: 'Sara Tesfaye', amount: 500, currency: 'USD', status: 'overdue' as const, followUp: 'Yonas B.' },
-  ];
+  // Fetch follow-ups
+  const { data: followUps = [] } = useQuery({
+    queryKey: ['allFollowUps'],
+    queryFn: followUpsApi.getAll,
+  });
+
+  // Fetch overdue pledges
+  const { data: overduePledges = [] } = useQuery({
+    queryKey: ['overduePledges'],
+    queryFn: pledgesApi.getOverdue,
+  });
+
+  // Fetch due monthly pledges
+  const { data: dueMonthlyPledges = [] } = useQuery({
+    queryKey: ['dueMonthlyPledges'],
+    queryFn: pledgesApi.getDueMonthly,
+  });
 
   const formatCurrency = (value: number, currency: string = 'ETB') => {
     return new Intl.NumberFormat('en-US', {
@@ -38,31 +51,57 @@ const AdminDashboard: React.FC = () => {
     }).format(value);
   };
 
+  // Calculate total collected
+  const totalCollected = pledges.reduce((sum: number, pledge: Pledge) => {
+    const paid = pledge.total_paid || pledge.totalPaid || 0;
+    return sum + paid;
+  }, 0);
+
+  const stats = {
+    assignedFollowUps: followUps.length,
+    totalPledges: pledges.length,
+    totalCollectedETB: totalCollected,
+    pendingCount: pledges.filter((p: Pledge) => p.status === 'pending').length,
+    overdueCount: overduePledges.length,
+    dueThisMonth: dueMonthlyPledges.length,
+  };
+
+  // Get 5 most recent pledges
+  const recentPledges = pledges.slice(0, 4);
+
+  if (pledgesLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 fade-in">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Assigned Follow-Ups"
-          value={mockStats.assignedFollowUps}
+          value={stats.assignedFollowUps}
           icon={UserCheck}
           iconColor="text-primary"
         />
         <StatCard
           title="Total Pledges"
-          value={mockStats.totalPledges}
+          value={stats.totalPledges}
           icon={FileText}
           iconColor="text-info"
         />
         <StatCard
           title="Total Collected"
-          value={formatCurrency(mockStats.totalCollectedETB)}
+          value={formatCurrency(stats.totalCollectedETB)}
           icon={DollarSign}
           iconColor="text-success"
         />
         <StatCard
           title="Overdue"
-          value={mockStats.overdueCount}
+          value={stats.overdueCount}
           icon={AlertTriangle}
           iconColor="text-destructive"
         />
@@ -89,7 +128,7 @@ const AdminDashboard: React.FC = () => {
               <Button variant="outline" className="w-full justify-between text-destructive hover:text-destructive">
                 <span className="flex items-center">
                   <AlertTriangle className="h-4 w-4 mr-2" />
-                  View Overdue ({mockStats.overdueCount})
+                  View Overdue ({stats.overdueCount})
                 </span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -98,7 +137,7 @@ const AdminDashboard: React.FC = () => {
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center">
                   <Clock className="h-4 w-4 mr-2" />
-                  Due This Month
+                  Due This Month ({stats.dueThisMonth})
                 </span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -123,22 +162,36 @@ const AdminDashboard: React.FC = () => {
                   <th className="pb-3">Name</th>
                   <th className="pb-3">Amount</th>
                   <th className="pb-3">Status</th>
-                  <th className="pb-3">Follow-Up</th>
+                  <th className="pb-3">Due Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {mockRecentPledges.map((pledge) => (
-                  <tr key={pledge._id} className="table-row-hover">
-                    <td className="py-3 font-medium text-foreground">{pledge.fullName}</td>
-                    <td className="py-3 text-muted-foreground">
-                      {formatCurrency(pledge.amount, pledge.currency)}
+                {recentPledges.length > 0 ? (
+                  recentPledges.map((pledge: Pledge) => (
+                    <tr key={pledge._id} className="table-row-hover">
+                      <td className="py-3 font-medium text-foreground">
+                        {pledge.full_name || pledge.fullName || 'N/A'}
+                      </td>
+                      <td className="py-3 text-muted-foreground">
+                        {formatCurrency(pledge.promised_amount || pledge.amount || 0, pledge.currency || 'ETB')}
+                      </td>
+                      <td className="py-3">
+                        <StatusBadge status={pledge.status || 'pending'} />
+                      </td>
+                      <td className="py-3 text-muted-foreground">
+                        {pledge.promised_end_date || pledge.promised_date
+                          ? new Date(pledge.promised_end_date || pledge.promised_date!).toLocaleDateString()
+                          : 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                      No pledges found
                     </td>
-                    <td className="py-3">
-                      <StatusBadge status={pledge.status} />
-                    </td>
-                    <td className="py-3 text-muted-foreground">{pledge.followUp}</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -153,7 +206,7 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <Clock className="h-8 w-8 text-warning" />
               <div>
-                <p className="text-2xl font-bold text-foreground">{mockStats.pendingCount}</p>
+                <p className="text-2xl font-bold text-foreground">{stats.pendingCount}</p>
                 <p className="text-sm text-muted-foreground">Pending Pledges</p>
               </div>
             </div>
@@ -162,7 +215,7 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-8 w-8 text-destructive" />
               <div>
-                <p className="text-2xl font-bold text-foreground">{mockStats.overdueCount}</p>
+                <p className="text-2xl font-bold text-foreground">{stats.overdueCount}</p>
                 <p className="text-sm text-muted-foreground">Overdue Pledges</p>
               </div>
             </div>
@@ -171,8 +224,8 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <FileText className="h-8 w-8 text-info" />
               <div>
-                <p className="text-2xl font-bold text-foreground">5</p>
-                <p className="text-sm text-muted-foreground">Due This Week</p>
+                <p className="text-2xl font-bold text-foreground">{stats.dueThisMonth}</p>
+                <p className="text-sm text-muted-foreground">Due This Month</p>
               </div>
             </div>
           </div>

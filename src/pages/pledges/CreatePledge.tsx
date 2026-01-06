@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,26 +18,54 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { pledgesApi, CreatePledgePayload } from '@/api/pledges';
+import { followUpsApi } from '@/api/followUps';
+import { ContributionType } from '@/types';
 
 const pledgeSchema = z.object({
-  fullName: z.string().min(2, 'Name must be at least 2 characters'),
-  phone: z.string().min(10, 'Please enter a valid phone number'),
-  address: z.string().optional(),
-  pledgeType: z.enum(['cash', 'material']),
-  amount: z.number().optional(),
-  currency: z.enum(['ETB', 'USD']).optional(),
-  materialType: z.string().optional(),
-  promisedDate: z.string().min(1, 'Please select a promised date'),
-  assignedFollowUp: z.string().optional(),
-  notes: z.string().optional(),
+  full_name: z.string().min(2, 'Name must be at least 2 characters'),
+  phone_number: z.string().min(10, 'Please enter a valid phone number'),
+  alt_phone_number: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  contribution_type: z.enum(['oneTime', 'monthly', 'material']),
+  promised_amount: z.number().optional(),
+  material_type: z.string().optional(),
+  material_quantity: z.number().optional(),
+  other_description: z.string().optional(),
+  promised_start_date: z.string().min(1, 'Please select a start date'),
+  promised_end_date: z.string().optional(),
+  assigned_followup: z.string().optional(),
 });
 
 type PledgeFormData = z.infer<typeof pledgeSchema>;
 
 const CreatePledge: React.FC = () => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [pledgeType, setPledgeType] = useState<'cash' | 'material'>('cash');
+  const [contributionType, setContributionType] = useState<ContributionType>('oneTime');
+
+  // Fetch follow-up users from backend
+  const { data: followUpUsers = [] } = useQuery({
+    queryKey: ['allFollowUps'],
+    queryFn: followUpsApi.getAll,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: CreatePledgePayload) => pledgesApi.create(data),
+    onSuccess: () => {
+      toast({
+        title: 'Pledge created',
+        description: 'The pledge has been created successfully.',
+      });
+      navigate('/pledges');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error?.response?.data?.message || 'Failed to create pledge. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const {
     register,
@@ -46,38 +75,31 @@ const CreatePledge: React.FC = () => {
   } = useForm<PledgeFormData>({
     resolver: zodResolver(pledgeSchema),
     defaultValues: {
-      pledgeType: 'cash',
-      currency: 'ETB',
+      contribution_type: 'oneTime',
     },
   });
 
-  // Mock follow-up users
-  const followUpUsers = [
-    { _id: '1', name: 'Marta Solomon' },
-    { _id: '2', name: 'Dawit Hailu' },
-    { _id: '3', name: 'Sara Tadesse' },
-    { _id: '4', name: 'Yonas Berhane' },
-  ];
-
   const onSubmit = async (data: PledgeFormData) => {
-    setIsLoading(true);
-    try {
-      // API call would go here
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast({
-        title: 'Pledge created',
-        description: 'The pledge has been created successfully.',
-      });
-      navigate('/pledges');
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create pledge. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
+    const payload: CreatePledgePayload = {
+      full_name: data.full_name,
+      phone_number: data.phone_number,
+      alt_phone_number: data.alt_phone_number || '',
+      email: data.email || '',
+      contribution_type: data.contribution_type,
+      promised_start_date: data.promised_start_date,
+      promised_end_date: data.promised_end_date || '',
+      assigned_followup: data.assigned_followup || '',
+    };
+
+    if (data.contribution_type === 'material') {
+      payload.material_type = data.material_type || '';
+      payload.material_quantity = data.material_quantity;
+      payload.other_description = data.other_description || '';
+    } else {
+      payload.promised_amount = data.promised_amount;
     }
+
+    createMutation.mutate(payload);
   };
 
   return (
@@ -102,37 +124,49 @@ const CreatePledge: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name *</Label>
+              <Label htmlFor="full_name">Full Name *</Label>
               <Input
-                id="fullName"
+                id="full_name"
                 placeholder="Enter full name"
-                {...register('fullName')}
+                {...register('full_name')}
               />
-              {errors.fullName && (
-                <p className="text-sm text-destructive">{errors.fullName.message}</p>
+              {errors.full_name && (
+                <p className="text-sm text-destructive">{errors.full_name.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number *</Label>
+              <Label htmlFor="phone_number">Phone Number *</Label>
               <Input
-                id="phone"
-                placeholder="+251..."
-                {...register('phone')}
+                id="phone_number"
+                placeholder="0911223344"
+                {...register('phone_number')}
               />
-              {errors.phone && (
-                <p className="text-sm text-destructive">{errors.phone.message}</p>
+              {errors.phone_number && (
+                <p className="text-sm text-destructive">{errors.phone_number.message}</p>
               )}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Input
-              id="address"
-              placeholder="Enter address"
-              {...register('address')}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="alt_phone_number">Alt Phone Number</Label>
+              <Input
+                id="alt_phone_number"
+                placeholder="Optional"
+                {...register('alt_phone_number')}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Optional"
+                {...register('email')}
+              />
+            </div>
           </div>
         </div>
 
@@ -143,74 +177,88 @@ const CreatePledge: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Pledge Type *</Label>
+              <Label>Contribution Type *</Label>
               <Select
-                defaultValue="cash"
-                onValueChange={(value: 'cash' | 'material') => {
-                  setPledgeType(value);
-                  setValue('pledgeType', value);
+                defaultValue="oneTime"
+                onValueChange={(value: ContributionType) => {
+                  setContributionType(value);
+                  setValue('contribution_type', value);
                 }}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="oneTime">One Time</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
                   <SelectItem value="material">Material</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="promisedDate">Promised Date *</Label>
+              <Label htmlFor="promised_start_date">Start Date *</Label>
               <Input
-                id="promisedDate"
+                id="promised_start_date"
                 type="date"
-                {...register('promisedDate')}
+                {...register('promised_start_date')}
               />
-              {errors.promisedDate && (
-                <p className="text-sm text-destructive">{errors.promisedDate.message}</p>
+              {errors.promised_start_date && (
+                <p className="text-sm text-destructive">{errors.promised_start_date.message}</p>
               )}
             </div>
           </div>
 
-          {pledgeType === 'cash' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount *</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="Enter amount"
-                  {...register('amount', { valueAsNumber: true })}
-                />
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="promised_end_date">End Date</Label>
+            <Input
+              id="promised_end_date"
+              type="date"
+              {...register('promised_end_date')}
+            />
+          </div>
 
-              <div className="space-y-2">
-                <Label>Currency *</Label>
-                <Select
-                  defaultValue="ETB"
-                  onValueChange={(value: 'ETB' | 'USD') => setValue('currency', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ETB">ETB (Birr)</SelectItem>
-                    <SelectItem value="USD">USD (Dollar)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ) : (
+          {contributionType !== 'material' ? (
             <div className="space-y-2">
-              <Label htmlFor="materialType">Material Type *</Label>
+              <Label htmlFor="promised_amount">Promised Amount (ETB) *</Label>
               <Input
-                id="materialType"
-                placeholder="e.g., Construction Materials, Equipment"
-                {...register('materialType')}
+                id="promised_amount"
+                type="number"
+                placeholder="Enter amount"
+                {...register('promised_amount', { valueAsNumber: true })}
               />
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="material_type">Material Type *</Label>
+                  <Input
+                    id="material_type"
+                    placeholder="e.g., Cement, Steel, etc."
+                    {...register('material_type')}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="material_quantity">Quantity</Label>
+                  <Input
+                    id="material_quantity"
+                    type="number"
+                    placeholder="Enter quantity"
+                    {...register('material_quantity', { valueAsNumber: true })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="other_description">Description</Label>
+                <Textarea
+                  id="other_description"
+                  placeholder="Additional details about the material"
+                  rows={3}
+                  {...register('other_description')}
+                />
+              </div>
+            </>
           )}
         </div>
 
@@ -221,28 +269,18 @@ const CreatePledge: React.FC = () => {
 
           <div className="space-y-2">
             <Label>Assign Follow-Up</Label>
-            <Select onValueChange={(value) => setValue('assignedFollowUp', value)}>
+            <Select onValueChange={(value) => setValue('assigned_followup', value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a follow-up user" />
               </SelectTrigger>
               <SelectContent>
                 {followUpUsers.map((user) => (
-                  <SelectItem key={user._id} value={user._id}>
-                    {user.name}
+                  <SelectItem key={user._id || user.id} value={user._id || user.id || ''}>
+                    {user.first_name} {user.middle_name || ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              placeholder="Add any additional notes..."
-              rows={4}
-              {...register('notes')}
-            />
           </div>
         </div>
 
@@ -250,8 +288,8 @@ const CreatePledge: React.FC = () => {
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? (
+          <Button type="submit" disabled={createMutation.isPending}>
+            {createMutation.isPending ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />
                 Creating...

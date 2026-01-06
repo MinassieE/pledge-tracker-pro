@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
 import { Plus, Eye, Edit, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,94 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Pledge, PledgeStatus, PledgeType } from '@/types';
+import { pledgesApi } from '@/api/pledges';
+import { Pledge, PledgeStatus } from '@/types';
 
 const PledgesList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<PledgeStatus | 'all'>('all');
-  const [typeFilter, setTypeFilter] = useState<PledgeType | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<'oneTime' | 'monthly' | 'material' | 'all'>('all');
 
-  // Mock data for demo
-  const mockPledges: Pledge[] = [
-    {
-      _id: '1',
-      fullName: 'Abebe Kebede',
-      phone: '+251911234567',
-      address: 'Addis Ababa, Ethiopia',
-      pledgeType: 'cash',
-      amount: 50000,
-      currency: 'ETB',
-      promisedDate: '2024-01-20',
-      status: 'paid',
-      payments: [],
-      totalPaid: 50000,
-      createdAt: '2024-01-01',
-    },
-    {
-      _id: '2',
-      fullName: 'Fatuma Ahmed',
-      phone: '+251922345678',
-      address: 'Dire Dawa, Ethiopia',
-      pledgeType: 'cash',
-      amount: 1000,
-      currency: 'USD',
-      promisedDate: '2024-01-10',
-      status: 'overdue',
-      payments: [],
-      totalPaid: 0,
-      createdAt: '2024-01-02',
-    },
-    {
-      _id: '3',
-      fullName: 'Dawit Haile',
-      phone: '+251933456789',
-      pledgeType: 'cash',
-      amount: 25000,
-      currency: 'ETB',
-      promisedDate: '2024-01-15',
-      status: 'partial',
-      payments: [],
-      totalPaid: 15000,
-      createdAt: '2024-01-03',
-    },
-    {
-      _id: '4',
-      fullName: 'Sara Tesfaye',
-      phone: '+251944567890',
-      pledgeType: 'material',
-      materialType: 'Construction Materials',
-      promisedDate: '2024-01-25',
-      status: 'pending',
-      payments: [],
-      totalPaid: 0,
-      createdAt: '2024-01-04',
-    },
-    {
-      _id: '5',
-      fullName: 'Yonas Bekele',
-      phone: '+251955678901',
-      pledgeType: 'cash',
-      amount: 75000,
-      currency: 'ETB',
-      promisedDate: '2024-01-18',
-      status: 'paid',
-      payments: [],
-      totalPaid: 75000,
-      createdAt: '2024-01-05',
-    },
-    {
-      _id: '6',
-      fullName: 'Meron Tadesse',
-      phone: '+251966789012',
-      pledgeType: 'cash',
-      amount: 2000,
-      currency: 'USD',
-      promisedDate: '2024-02-01',
-      status: 'pending',
-      payments: [],
-      totalPaid: 0,
-      createdAt: '2024-01-06',
-    },
-  ];
+  // Fetch all pledges from backend
+  const { data: pledges = [], isLoading, error } = useQuery({
+    queryKey: ['allPledges'],
+    queryFn: pledgesApi.getAll,
+  });
 
   const formatCurrency = (value: number | undefined, currency: string = 'ETB') => {
     if (!value) return '-';
@@ -118,51 +44,63 @@ const PledgesList: React.FC = () => {
 
   const columns: ColumnDef<Pledge>[] = [
     {
-      accessorKey: 'fullName',
+      accessorKey: 'full_name',
       header: 'Name',
       cell: ({ row }) => (
         <div>
-          <p className="font-medium text-foreground">{row.original.fullName}</p>
-          <p className="text-xs text-muted-foreground">{row.original.phone}</p>
+          <p className="font-medium text-foreground">
+            {row.original.full_name || row.original.fullName || 'N/A'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {row.original.phone_number || row.original.phone || 'N/A'}
+          </p>
         </div>
       ),
     },
     {
-      accessorKey: 'pledgeType',
+      accessorKey: 'contribution_type',
       header: 'Type',
-      cell: ({ row }) => (
-        <span className="capitalize text-muted-foreground">{row.original.pledgeType}</span>
-      ),
+      cell: ({ row }) => {
+        const type = row.original.contribution_type || row.original.contributionType || 'oneTime';
+        return <span className="capitalize text-muted-foreground">{type}</span>;
+      },
     },
     {
-      accessorKey: 'amount',
+      accessorKey: 'promised_amount',
       header: 'Amount',
-      cell: ({ row }) =>
-        row.original.pledgeType === 'cash'
-          ? formatCurrency(row.original.amount, row.original.currency)
-          : row.original.materialType || '-',
+      cell: ({ row }) => {
+        const type = row.original.contribution_type || row.original.contributionType;
+        if (type === 'material') {
+          return row.original.material_type || row.original.materialType || '-';
+        }
+        return formatCurrency(row.original.promised_amount || row.original.amount, row.original.currency);
+      },
     },
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => <StatusBadge status={row.original.status || 'pending'} />,
     },
     {
-      accessorKey: 'promisedDate',
+      accessorKey: 'promised_end_date',
       header: 'Due Date',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">
-          {new Date(row.original.promisedDate).toLocaleDateString()}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const date = row.original.promised_end_date || row.original.promised_date || row.original.promisedDate;
+        return (
+          <span className="text-muted-foreground">
+            {date ? new Date(date).toLocaleDateString() : 'N/A'}
+          </span>
+        );
+      },
     },
     {
-      accessorKey: 'totalPaid',
+      accessorKey: 'total_paid',
       header: 'Paid',
-      cell: ({ row }) =>
-        row.original.pledgeType === 'cash'
-          ? formatCurrency(row.original.totalPaid, row.original.currency)
-          : '-',
+      cell: ({ row }) => {
+        const type = row.original.contribution_type || row.original.contributionType;
+        if (type === 'material') return '-';
+        return formatCurrency(row.original.total_paid || row.original.totalPaid, row.original.currency);
+      },
     },
     {
       id: 'actions',
@@ -196,11 +134,29 @@ const PledgesList: React.FC = () => {
     },
   ];
 
-  const filteredPledges = mockPledges.filter((pledge) => {
+  // Filter pledges based on selected filters
+  const filteredPledges = pledges.filter((pledge) => {
     if (statusFilter !== 'all' && pledge.status !== statusFilter) return false;
-    if (typeFilter !== 'all' && pledge.pledgeType !== typeFilter) return false;
+    const pledgeType = pledge.contribution_type || pledge.contributionType;
+    if (typeFilter !== 'all' && pledgeType !== typeFilter) return false;
     return true;
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load pledges. Please try again.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 fade-in">
@@ -233,13 +189,14 @@ const PledgesList: React.FC = () => {
           </SelectContent>
         </Select>
 
-        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as PledgeType | 'all')}>
+        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'oneTime' | 'monthly' | 'material' | 'all')}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="cash">Cash</SelectItem>
+            <SelectItem value="oneTime">One Time</SelectItem>
+            <SelectItem value="monthly">Monthly</SelectItem>
             <SelectItem value="material">Material</SelectItem>
           </SelectContent>
         </Select>

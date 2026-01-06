@@ -1,18 +1,13 @@
 import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
-import { Plus, Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { Plus, Edit, MoreHorizontal, UserCheck, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/DataTable';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,34 +15,66 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
+import { followUpsApi } from '@/api/followUps';
 import { FollowUpUser } from '@/types';
 
 const FollowUpsList: React.FC = () => {
+  const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedFollowUp, setSelectedFollowUp] = useState<FollowUpUser | null>(null);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', assignedAdmin: '' });
+  const [formData, setFormData] = useState({ first_name: '', middle_name: '', email: '' });
 
-  // Mock data
-  const mockAdmins = [
-    { _id: '1', name: 'Solomon Hailu' },
-    { _id: '2', name: 'Tigist Mengistu' },
-    { _id: '3', name: 'Bereket Tadesse' },
-  ];
+  // Fetch follow-ups from backend
+  const { data: followUps = [], isLoading, error } = useQuery({
+    queryKey: ['allFollowUps'],
+    queryFn: followUpsApi.getAll,
+  });
 
-  const mockFollowUps: (FollowUpUser & { adminName?: string })[] = [
-    { _id: '1', first_name: 'Marta', name: 'Marta Solomon', email: 'marta@example.com', phone: '+251911234567', role: 'followUp' as const, assignedAdmin: '1', createdAt: '2024-01-01' },
-    { _id: '2', first_name: 'Dawit', name: 'Dawit Hailu', email: 'dawit@example.com', phone: '+251922345678', role: 'followUp' as const, assignedAdmin: '1', createdAt: '2024-01-02' },
-    { _id: '3', first_name: 'Sara', name: 'Sara Tadesse', email: 'sara@example.com', phone: '+251933456789', role: 'followUp' as const, assignedAdmin: '2', createdAt: '2024-01-03' },
-    { _id: '4', first_name: 'Yonas', name: 'Yonas Berhane', email: 'yonas@example.com', phone: '+251944567890', role: 'followUp' as const, assignedAdmin: '2', createdAt: '2024-01-04' },
-    { _id: '5', first_name: 'Helen', name: 'Helen Gebre', email: 'helen@example.com', phone: '+251955678901', role: 'followUp' as const, assignedAdmin: '3', createdAt: '2024-01-05' },
-  ].map(f => ({
-    ...f,
-    adminName: mockAdmins.find(a => a._id === f.assignedAdmin)?.name,
-  }));
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (data: { first_name: string; middle_name: string; email: string }) =>
+      followUpsApi.create(data),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['allFollowUps'] });
+      toast({
+        title: 'Follow-up user created',
+        description: response.password 
+          ? `User created. Temporary password: ${response.password}` 
+          : 'User created successfully.',
+      });
+      setIsCreateModalOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error?.response?.data?.message || 'Failed to create user.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Update status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'inactive' }) =>
+      followUpsApi.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allFollowUps'] });
+      toast({
+        title: 'Status updated',
+        description: 'User status has been updated.',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update status.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const handleCreate = () => {
-    if (!formData.name || !formData.email || !formData.password) {
+    if (!formData.first_name || !formData.email) {
       toast({
         title: 'Validation Error',
         description: 'Please fill in all required fields.',
@@ -55,69 +82,32 @@ const FollowUpsList: React.FC = () => {
       });
       return;
     }
-    
-    toast({
-      title: 'Follow-up user created',
-      description: `${formData.name} has been added as a follow-up user.`,
-    });
-    setIsCreateModalOpen(false);
-    resetForm();
+    createMutation.mutate(formData);
   };
 
-  const handleEdit = () => {
-    if (!formData.name || !formData.email) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please fill in all required fields.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    toast({
-      title: 'Follow-up user updated',
-      description: `${formData.name}'s information has been updated.`,
-    });
-    setIsEditModalOpen(false);
-    resetForm();
-  };
-
-  const handleDelete = (user: FollowUpUser) => {
-    toast({
-      title: 'Follow-up user deleted',
-      description: `${user.name || user.first_name} has been removed.`,
-    });
+  const handleToggleStatus = (user: FollowUpUser) => {
+    const newStatus = user.status === 'active' ? 'inactive' : 'active';
+    updateStatusMutation.mutate({ id: user._id || user.id || '', status: newStatus });
   };
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', password: '', assignedAdmin: '' });
-    setSelectedFollowUp(null);
+    setFormData({ first_name: '', middle_name: '', email: '' });
   };
 
-  const openEditModal = (user: FollowUpUser) => {
-    setSelectedFollowUp(user);
-    setFormData({
-      name: user.name || user.first_name || '',
-      email: user.email,
-      phone: user.phone || '',
-      password: '',
-      assignedAdmin: user.assignedAdmin || '',
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const columns: ColumnDef<FollowUpUser & { adminName?: string }>[] = [
+  const columns: ColumnDef<FollowUpUser>[] = [
     {
-      accessorKey: 'name',
+      accessorKey: 'first_name',
       header: 'Name',
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-success/10 flex items-center justify-center">
             <span className="text-sm font-medium text-success">
-              {(row.original.name || row.original.first_name || '?').charAt(0)}
+              {(row.original.first_name || '?').charAt(0)}
             </span>
           </div>
-          <span className="font-medium text-foreground">{row.original.name || row.original.first_name}</span>
+          <span className="font-medium text-foreground">
+            {row.original.first_name} {row.original.middle_name || ''}
+          </span>
         </div>
       ),
     },
@@ -129,27 +119,32 @@ const FollowUpsList: React.FC = () => {
       ),
     },
     {
-      accessorKey: 'phone',
-      header: 'Phone',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.phone || '-'}</span>
-      ),
-    },
-    {
-      accessorKey: 'adminName',
-      header: 'Assigned Admin',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.adminName || '-'}</span>
-      ),
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.original.status || 'active';
+        return (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            status === 'active' 
+              ? 'bg-success/10 text-success' 
+              : 'bg-muted text-muted-foreground'
+          }`}>
+            {status}
+          </span>
+        );
+      },
     },
     {
       accessorKey: 'createdAt',
       header: 'Created At',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">
-          {new Date(row.original.createdAt).toLocaleDateString()}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const date = row.original.createdAt || row.original.created_at;
+        return (
+          <span className="text-muted-foreground">
+            {date ? new Date(date).toLocaleDateString() : 'N/A'}
+          </span>
+        );
+      },
     },
     {
       id: 'actions',
@@ -161,16 +156,18 @@ const FollowUpsList: React.FC = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => openEditModal(row.original)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => handleDelete(row.original)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
+            <DropdownMenuItem onClick={() => handleToggleStatus(row.original)}>
+              {row.original.status === 'active' ? (
+                <>
+                  <UserX className="h-4 w-4 mr-2" />
+                  Deactivate
+                </>
+              ) : (
+                <>
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Activate
+                </>
+              )}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -178,68 +175,21 @@ const FollowUpsList: React.FC = () => {
     },
   ];
 
-  const FormFields = ({ isCreate = false }: { isCreate?: boolean }) => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Full Name *</Label>
-        <Input
-          id="name"
-          placeholder="Enter full name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-        />
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">Email *</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="Enter email address"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-        />
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load follow-up users. Please try again.</p>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="phone">Phone Number</Label>
-        <Input
-          id="phone"
-          placeholder="+251..."
-          value={formData.phone}
-          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Assigned Admin</Label>
-        <Select
-          value={formData.assignedAdmin}
-          onValueChange={(value) => setFormData({ ...formData, assignedAdmin: value })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select an admin" />
-          </SelectTrigger>
-          <SelectContent>
-            {mockAdmins.map((admin) => (
-              <SelectItem key={admin._id} value={admin._id}>
-                {admin.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {isCreate && (
-        <div className="space-y-2">
-          <Label htmlFor="password">Password *</Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Enter password"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-          />
-        </div>
-      )}
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="space-y-6 fade-in">
@@ -247,7 +197,7 @@ const FollowUpsList: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Manage Follow-Ups</h2>
-          <p className="text-muted-foreground">Add, edit, or remove follow-up users</p>
+          <p className="text-muted-foreground">Add or update follow-up users</p>
         </div>
         <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -258,7 +208,7 @@ const FollowUpsList: React.FC = () => {
       {/* Table */}
       <DataTable
         columns={columns}
-        data={mockFollowUps}
+        data={followUps}
         searchPlaceholder="Search follow-up users..."
       />
 
@@ -270,7 +220,7 @@ const FollowUpsList: React.FC = () => {
           resetForm();
         }}
         title="Add New Follow-Up User"
-        description="Create a new follow-up user account."
+        description="Create a new follow-up user account. A temporary password will be generated."
         footer={
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => {
@@ -279,35 +229,42 @@ const FollowUpsList: React.FC = () => {
             }}>
               Cancel
             </Button>
-            <Button onClick={handleCreate}>Create User</Button>
-          </div>
-        }
-      >
-        <FormFields isCreate />
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          resetForm();
-        }}
-        title="Edit Follow-Up User"
-        description="Update follow-up user information."
-        footer={
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => {
-              setIsEditModalOpen(false);
-              resetForm();
-            }}>
-              Cancel
+            <Button onClick={handleCreate} disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Creating...' : 'Create User'}
             </Button>
-            <Button onClick={handleEdit}>Save Changes</Button>
           </div>
         }
       >
-        <FormFields />
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="first_name">First Name *</Label>
+            <Input
+              id="first_name"
+              placeholder="Enter first name"
+              value={formData.first_name}
+              onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="middle_name">Middle Name</Label>
+            <Input
+              id="middle_name"
+              placeholder="Enter middle name"
+              value={formData.middle_name}
+              onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email *</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Enter email address"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   );

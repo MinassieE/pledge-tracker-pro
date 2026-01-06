@@ -13,9 +13,11 @@ import {
 import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { PageLoader } from '@/components/ui/LoadingSpinner';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { reportsApi } from '@/api/reports';
 import { pledgesApi } from '@/api/pledges';
+import { followUpsApi } from '@/api/followUps';
+import { Pledge } from '@/types';
 import {
   BarChart,
   Bar,
@@ -32,57 +34,29 @@ import {
 const COLORS = ['hsl(221, 83%, 53%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)'];
 
 const SuperAdminDashboard: React.FC = () => {
+  // Fetch collection stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['collectionStats'],
-    queryFn: () => reportsApi.getCollectionStats(),
+    queryFn: reportsApi.getCollectionStats,
   });
 
-  const { data: monthlyData, isLoading: monthlyLoading } = useQuery({
-    queryKey: ['monthlyCollection'],
-    queryFn: () => reportsApi.getMonthlyCollection(),
+  // Fetch all pledges for recent list and counts
+  const { data: pledges = [], isLoading: pledgesLoading } = useQuery({
+    queryKey: ['allPledges'],
+    queryFn: pledgesApi.getAll,
   });
 
-  const { data: recentPledges, isLoading: pledgesLoading } = useQuery({
-    queryKey: ['recentPledges'],
-    queryFn: () => pledgesApi.getAll({ limit: 5 }),
+  // Fetch follow-ups for count
+  const { data: followUps = [] } = useQuery({
+    queryKey: ['allFollowUps'],
+    queryFn: followUpsApi.getAll,
   });
 
-  // Mock data for demo
-  const mockStats = {
-    totalAdmins: 8,
-    totalFollowUps: 24,
-    totalPledges: 156,
-    totalCollectedETB: 2450000,
-    totalCollectedUSD: 45000,
-    pendingCount: 45,
-    overdueCount: 12,
-    paidCount: 89,
-    partialCount: 10,
-  };
-
-  const mockMonthlyData = [
-    { month: 'Jan', totalETB: 180000, totalUSD: 3200 },
-    { month: 'Feb', totalETB: 220000, totalUSD: 4100 },
-    { month: 'Mar', totalETB: 195000, totalUSD: 3800 },
-    { month: 'Apr', totalETB: 280000, totalUSD: 5200 },
-    { month: 'May', totalETB: 310000, totalUSD: 5800 },
-    { month: 'Jun', totalETB: 265000, totalUSD: 4900 },
-  ];
-
-  const pledgeDistribution = [
-    { name: 'Paid', value: mockStats.paidCount },
-    { name: 'Pending', value: mockStats.pendingCount },
-    { name: 'Partial', value: mockStats.partialCount },
-    { name: 'Overdue', value: mockStats.overdueCount },
-  ];
-
-  const mockRecentPledges = [
-    { _id: '1', fullName: 'Abebe Kebede', amount: 50000, currency: 'ETB', status: 'paid' as const, promisedDate: '2024-01-15' },
-    { _id: '2', fullName: 'Fatuma Ahmed', amount: 1000, currency: 'USD', status: 'pending' as const, promisedDate: '2024-01-20' },
-    { _id: '3', fullName: 'Dawit Haile', amount: 25000, currency: 'ETB', status: 'partial' as const, promisedDate: '2024-01-10' },
-    { _id: '4', fullName: 'Sara Tesfaye', amount: 500, currency: 'USD', status: 'overdue' as const, promisedDate: '2024-01-05' },
-    { _id: '5', fullName: 'Yonas Bekele', amount: 75000, currency: 'ETB', status: 'paid' as const, promisedDate: '2024-01-18' },
-  ];
+  // Fetch overdue pledges
+  const { data: overduePledges = [] } = useQuery({
+    queryKey: ['overduePledges'],
+    queryFn: pledgesApi.getOverdue,
+  });
 
   const formatCurrency = (value: number, currency: string = 'ETB') => {
     return new Intl.NumberFormat('en-US', {
@@ -92,31 +66,60 @@ const SuperAdminDashboard: React.FC = () => {
     }).format(value);
   };
 
+  // Calculate stats from pledges
+  const calculatedStats = {
+    totalPledges: pledges.length,
+    totalFollowUps: followUps.length,
+    overdueCount: overduePledges.length,
+    paidCount: pledges.filter((p: Pledge) => p.status === 'paid').length,
+    pendingCount: pledges.filter((p: Pledge) => p.status === 'pending').length,
+    partialCount: pledges.filter((p: Pledge) => p.status === 'partial').length,
+  };
+
+  const pledgeDistribution = [
+    { name: 'Paid', value: calculatedStats.paidCount },
+    { name: 'Pending', value: calculatedStats.pendingCount },
+    { name: 'Partial', value: calculatedStats.partialCount },
+    { name: 'Overdue', value: calculatedStats.overdueCount },
+  ];
+
+  // Get 5 most recent pledges
+  const recentPledges = pledges.slice(0, 5);
+
+  if (statsLoading || pledgesLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 fade-in">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Admins"
-          value={mockStats.totalAdmins}
+          value={'-'}
+          subtitle="Endpoint not available"
           icon={Users}
           iconColor="text-primary"
         />
         <StatCard
           title="Total Follow-Ups"
-          value={mockStats.totalFollowUps}
+          value={calculatedStats.totalFollowUps}
           icon={UserCheck}
           iconColor="text-success"
         />
         <StatCard
           title="Total Pledges"
-          value={mockStats.totalPledges}
+          value={calculatedStats.totalPledges}
           icon={FileText}
           iconColor="text-info"
         />
         <StatCard
           title="Overdue Pledges"
-          value={mockStats.overdueCount}
+          value={calculatedStats.overdueCount}
           icon={AlertTriangle}
           iconColor="text-destructive"
         />
@@ -126,55 +129,60 @@ const SuperAdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <StatCard
           title="Total Collected (ETB)"
-          value={formatCurrency(mockStats.totalCollectedETB, 'ETB')}
+          value={stats ? formatCurrency(stats.totalCollectedETB, 'ETB') : '-'}
           subtitle="Total amount collected in Birr"
           icon={DollarSign}
-          trend={{ value: 12.5, isPositive: true }}
           iconColor="text-success"
         />
         <StatCard
           title="Total Collected (USD)"
-          value={formatCurrency(mockStats.totalCollectedUSD, 'USD')}
+          value={stats ? formatCurrency(stats.totalCollectedUSD, 'USD') : '-'}
           subtitle="Total amount collected in USD"
           icon={TrendingUp}
-          trend={{ value: 8.3, isPositive: true }}
           iconColor="text-primary"
         />
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly Collection Chart */}
+        {/* Remaining Balance */}
         <div className="lg:col-span-2 stat-card">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Monthly Collection Trend</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={mockMonthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                }}
-              />
-              <Bar dataKey="totalETB" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="ETB" />
-            </BarChart>
-          </ResponsiveContainer>
+          <h3 className="text-lg font-semibold text-foreground mb-4">Collection Summary</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg bg-muted/50">
+              <p className="text-sm text-muted-foreground">Remaining (ETB)</p>
+              <p className="text-2xl font-bold text-destructive mt-1">
+                {stats ? formatCurrency(stats.remainingBalanceETB) : '-'}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <p className="text-sm text-muted-foreground">Remaining (USD)</p>
+              <p className="text-2xl font-bold text-destructive mt-1">
+                {stats ? formatCurrency(stats.remainingBalanceUSD, 'USD') : '-'}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-success/10">
+              <p className="text-sm text-muted-foreground">Paid Pledges</p>
+              <p className="text-2xl font-bold text-success mt-1">{stats?.paidCount || calculatedStats.paidCount}</p>
+            </div>
+            <div className="p-4 rounded-lg bg-warning/10">
+              <p className="text-sm text-muted-foreground">Pending Pledges</p>
+              <p className="text-2xl font-bold text-warning mt-1">{stats?.pendingCount || calculatedStats.pendingCount}</p>
+            </div>
+          </div>
         </div>
 
         {/* Pledge Distribution Chart */}
         <div className="stat-card">
           <h3 className="text-lg font-semibold text-foreground mb-4">Pledge Distribution</h3>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
                 data={pledgeDistribution}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={80}
+                innerRadius={40}
+                outerRadius={60}
                 paddingAngle={5}
                 dataKey="value"
               >
@@ -261,20 +269,32 @@ const SuperAdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {mockRecentPledges.map((pledge) => (
-                  <tr key={pledge._id} className="table-row-hover">
-                    <td className="py-3 font-medium text-foreground">{pledge.fullName}</td>
-                    <td className="py-3 text-muted-foreground">
-                      {formatCurrency(pledge.amount, pledge.currency)}
-                    </td>
-                    <td className="py-3">
-                      <StatusBadge status={pledge.status} />
-                    </td>
-                    <td className="py-3 text-muted-foreground">
-                      {new Date(pledge.promisedDate).toLocaleDateString()}
+                {recentPledges.length > 0 ? (
+                  recentPledges.map((pledge: Pledge) => (
+                    <tr key={pledge._id} className="table-row-hover">
+                      <td className="py-3 font-medium text-foreground">
+                        {pledge.full_name || pledge.fullName || 'N/A'}
+                      </td>
+                      <td className="py-3 text-muted-foreground">
+                        {formatCurrency(pledge.promised_amount || pledge.amount || 0, pledge.currency || 'ETB')}
+                      </td>
+                      <td className="py-3">
+                        <StatusBadge status={pledge.status || 'pending'} />
+                      </td>
+                      <td className="py-3 text-muted-foreground">
+                        {pledge.promised_end_date || pledge.promised_date || pledge.promisedDate
+                          ? new Date(pledge.promised_end_date || pledge.promised_date || pledge.promisedDate!).toLocaleDateString()
+                          : 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                      No pledges found
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

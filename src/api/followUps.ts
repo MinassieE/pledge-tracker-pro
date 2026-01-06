@@ -1,29 +1,49 @@
 import api from './axios';
-import { FollowUpUser, ApiResponse, PaginatedResponse } from '@/types';
+import { FollowUpUser, FollowUpsListResponse, SingleFollowUpResponse, UserStatus } from '@/types';
+
+interface CreateFollowUpPayload {
+  first_name: string;
+  middle_name: string;
+  email: string;
+}
+
+interface CreateFollowUpResponse {
+  success: boolean;
+  message: string;
+  followUp?: FollowUpUser;
+  password?: string; // Backend returns generated password
+}
+
+interface UpdateStatusResponse {
+  success: boolean;
+  message: string;
+  followUp?: FollowUpUser;
+}
 
 export const followUpsApi = {
-  getAll: async (page = 1, limit = 10): Promise<PaginatedResponse<FollowUpUser>> => {
-    const response = await api.get<PaginatedResponse<FollowUpUser>>(`/follow-up?page=${page}&limit=${limit}`);
+  getAll: async (): Promise<FollowUpUser[]> => {
+    const response = await api.get<FollowUpsListResponse>('/admin/getAllFollowUps');
+    return response.data.followUps || [];
+  },
+
+  getById: async (id: string): Promise<FollowUpUser> => {
+    const response = await api.get<SingleFollowUpResponse>(`/admin/getFollowUpById/${id}`);
+    return response.data.followUp;
+  },
+
+  create: async (data: CreateFollowUpPayload): Promise<CreateFollowUpResponse> => {
+    const response = await api.post<CreateFollowUpResponse>('/admin/addFollowUp', data);
     return response.data;
   },
 
-  getById: async (id: string): Promise<ApiResponse<FollowUpUser>> => {
-    const response = await api.get<ApiResponse<FollowUpUser>>(`/follow-up/${id}`);
+  updateStatus: async (id: string, status: UserStatus): Promise<UpdateStatusResponse> => {
+    const response = await api.put<UpdateStatusResponse>(`/admin/updateFollowUpStatus/${id}`, { status });
     return response.data;
   },
 
-  create: async (data: Partial<FollowUpUser>): Promise<ApiResponse<FollowUpUser>> => {
-    const response = await api.post<ApiResponse<FollowUpUser>>('/follow-up', data);
-    return response.data;
-  },
-
-  update: async (id: string, data: Partial<FollowUpUser>): Promise<ApiResponse<FollowUpUser>> => {
-    const response = await api.put<ApiResponse<FollowUpUser>>(`/follow-up/${id}`, data);
-    return response.data;
-  },
-
-  delete: async (id: string): Promise<ApiResponse<null>> => {
-    const response = await api.delete<ApiResponse<null>>(`/follow-up/${id}`);
-    return response.data;
+  // NOTE: No backend endpoint exists for deleting follow-up
+  delete: async (id: string): Promise<{ success: boolean; message: string }> => {
+    console.warn('followUpsApi.delete: No backend endpoint available yet');
+    return { success: false, message: 'Endpoint not available' };
   },
 };

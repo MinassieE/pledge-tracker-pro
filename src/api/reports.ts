@@ -1,19 +1,35 @@
 import api from './axios';
-import { ApiResponse, CollectionStats, MonthlyCollection, FollowUpPerformance } from '@/types';
+import { 
+  CollectionStats, 
+  CollectionStatsResponse,
+  MonthlyReportResponse,
+  FollowUpPerformance,
+  FollowUpPerformanceResponse
+} from '@/types';
 
 export const reportsApi = {
-  getCollectionStats: async (): Promise<ApiResponse<CollectionStats>> => {
-    const response = await api.get<ApiResponse<CollectionStats>>('/reports/collection-stats');
-    return response.data;
+  // Get total collection statistics
+  getCollectionStats: async (): Promise<CollectionStats> => {
+    const response = await api.get<CollectionStatsResponse>('/admin/reports/totalCollectionStats');
+    return response.data.data;
   },
 
-  getMonthlyCollection: async (): Promise<ApiResponse<MonthlyCollection[]>> => {
-    const response = await api.get<ApiResponse<MonthlyCollection[]>>('/reports/monthly-collection');
-    return response.data;
+  // Get monthly collection report for a specific month/year
+  getMonthlyCollection: async (year: number, month: number): Promise<MonthlyReportResponse['data']> => {
+    const response = await api.get<MonthlyReportResponse>(`/admin/reports/monthlyCollectionReport/${year}/${month}`);
+    return response.data.data;
   },
 
-  getFollowUpPerformance: async (): Promise<ApiResponse<FollowUpPerformance[]>> => {
-    const response = await api.get<ApiResponse<FollowUpPerformance[]>>('/reports/follow-up-performance');
-    return response.data;
+  // Get follow-up performance for a specific follow-up user
+  getFollowUpPerformance: async (followUpId: string): Promise<FollowUpPerformance> => {
+    const response = await api.get<FollowUpPerformanceResponse>(`/admin/reports/followUpPerformance/${followUpId}`);
+    return response.data.data;
+  },
+
+  // NOTE: No endpoint exists for getting all follow-ups' performance
+  // This would need to be created on the backend for the performance ranking table
+  getAllFollowUpPerformance: async (): Promise<FollowUpPerformance[]> => {
+    console.warn('reportsApi.getAllFollowUpPerformance: No backend endpoint available yet');
+    return [];
   },
 };

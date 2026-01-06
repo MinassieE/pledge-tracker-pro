@@ -1,4 +1,5 @@
 export type UserRole = 'superAdmin' | 'admin' | 'followUp';
+export type UserStatus = 'active' | 'inactive';
 
 export interface User {
   id?: string;
@@ -9,9 +10,12 @@ export interface User {
   email: string;
   phone?: string;
   role: UserRole;
+  status?: UserStatus;
   assigned_pledges?: string[];
   createdAt?: string;
+  created_at?: string;
   updatedAt?: string;
+  updated_at?: string;
 }
 
 export interface Admin extends User {
@@ -21,8 +25,10 @@ export interface Admin extends User {
 export interface FollowUpUser extends User {
   role: 'followUp';
   assignedAdmin?: string;
+  assigned_admin?: string;
 }
 
+export type ContributionType = 'oneTime' | 'monthly' | 'material';
 export type PledgeType = 'cash' | 'material';
 export type PledgeStatus = 'pending' | 'paid' | 'partial' | 'overdue';
 
@@ -32,11 +38,12 @@ export interface Payment {
   currency?: 'ETB' | 'USD';
   paidAt?: string;
   paid_at?: string;
-  notes?: string;
   method?: string;
+  notes?: string;
 }
 
 export interface Remark {
+  _id?: string;
   comment: string;
   createdAt?: string;
   created_at?: string;
@@ -49,18 +56,29 @@ export interface Pledge {
   full_name?: string;
   phone?: string;
   phone_number?: string;
+  alt_phone_number?: string;
+  email?: string;
   address?: string;
   pledgeType?: PledgeType;
   pledge_type?: PledgeType;
+  contributionType?: ContributionType;
+  contribution_type?: ContributionType;
   amount?: number;
+  promised_amount?: number;
   currency?: 'ETB' | 'USD';
   materialType?: string;
   material_type?: string;
+  material_quantity?: number;
+  other_description?: string;
   promisedDate?: string;
   promised_date?: string;
+  promised_start_date?: string;
+  promised_end_date?: string;
+  paper_form_image?: string;
   status?: PledgeStatus;
   assignedFollowUp?: string | FollowUpUser;
   assigned_follow_up?: string | FollowUpUser;
+  assigned_followup?: string | FollowUpUser;
   notes?: string;
   payments?: Payment[];
   remarks?: Remark[];
@@ -74,6 +92,8 @@ export interface Pledge {
 
 export interface CollectionStats {
   totalPledges: number;
+  totalPromisedETB?: number;
+  totalPromisedUSD?: number;
   totalCollectedETB: number;
   totalCollectedUSD: number;
   remainingBalanceETB: number;
@@ -95,6 +115,8 @@ export interface MonthlyCollection {
 export interface FollowUpPerformance {
   followUpId: string;
   name: string;
+  first_name?: string;
+  middle_name?: string;
   completedPledges: number;
   totalCollected: number;
   overdueHandled: number;
@@ -112,6 +134,7 @@ export interface DashboardStats {
   completedCount: number;
 }
 
+// Generic API Response wrappers
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -125,6 +148,56 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+// Backend-specific response types
+export interface PledgesListResponse {
+  success: boolean;
+  message: string;
+  pledges: Pledge[];
+  count?: number;
+}
+
+export interface SinglePledgeResponse {
+  success: boolean;
+  message: string;
+  pledge: Pledge;
+}
+
+export interface FollowUpsListResponse {
+  success: boolean;
+  message: string;
+  followUps: FollowUpUser[];
+}
+
+export interface SingleFollowUpResponse {
+  success: boolean;
+  message: string;
+  followUp: FollowUpUser;
+}
+
+export interface CollectionStatsResponse {
+  success: boolean;
+  message?: string;
+  data: CollectionStats;
+}
+
+export interface MonthlyReportResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    month: number;
+    year: number;
+    totalCollected: number;
+    pledgesCollected: number;
+    payments: Payment[];
+  };
+}
+
+export interface FollowUpPerformanceResponse {
+  success: boolean;
+  message?: string;
+  data: FollowUpPerformance;
 }
 
 export interface LoginCredentials {
@@ -150,6 +223,7 @@ export interface AuthResponse {
 
 export interface DecodedToken {
   userId: string;
+  id?: string;
   role: UserRole;
   exp: number;
   iat: number;

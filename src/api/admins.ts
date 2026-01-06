@@ -1,29 +1,48 @@
 import api from './axios';
-import { Admin, ApiResponse, PaginatedResponse } from '@/types';
+import { Admin, ApiResponse } from '@/types';
+
+interface CreateAdminPayload {
+  first_name: string;
+  middle_name: string;
+  email: string;
+}
+
+interface CreateAdminResponse {
+  success: boolean;
+  message: string;
+  admin?: Admin;
+  password?: string; // Backend returns generated password
+}
 
 export const adminsApi = {
-  getAll: async (page = 1, limit = 10): Promise<PaginatedResponse<Admin>> => {
-    const response = await api.get<PaginatedResponse<Admin>>(`/admin?page=${page}&limit=${limit}`);
-    return response.data;
+  // NOTE: No backend endpoint exists for getting all admins
+  // This will need to be created on the backend
+  getAll: async (): Promise<Admin[]> => {
+    // Placeholder - endpoint doesn't exist yet
+    console.warn('adminsApi.getAll: No backend endpoint available yet');
+    return [];
   },
 
+  // NOTE: No backend endpoint exists for getting admin by ID
   getById: async (id: string): Promise<ApiResponse<Admin>> => {
-    const response = await api.get<ApiResponse<Admin>>(`/admin/${id}`);
+    console.warn('adminsApi.getById: No backend endpoint available yet');
+    return { success: false, data: {} as Admin, message: 'Endpoint not available' };
+  },
+
+  create: async (data: CreateAdminPayload): Promise<CreateAdminResponse> => {
+    const response = await api.post<CreateAdminResponse>('/admin/addAdmin', data);
     return response.data;
   },
 
-  create: async (data: Partial<Admin>): Promise<ApiResponse<Admin>> => {
-    const response = await api.post<ApiResponse<Admin>>('/admin', data);
-    return response.data;
-  },
-
+  // NOTE: No backend endpoint exists for updating admin
   update: async (id: string, data: Partial<Admin>): Promise<ApiResponse<Admin>> => {
-    const response = await api.put<ApiResponse<Admin>>(`/admin/${id}`, data);
-    return response.data;
+    console.warn('adminsApi.update: No backend endpoint available yet');
+    return { success: false, data: {} as Admin, message: 'Endpoint not available' };
   },
 
+  // NOTE: No backend endpoint exists for deleting admin
   delete: async (id: string): Promise<ApiResponse<null>> => {
-    const response = await api.delete<ApiResponse<null>>(`/admin/${id}`);
-    return response.data;
+    console.warn('adminsApi.delete: No backend endpoint available yet');
+    return { success: false, data: null, message: 'Endpoint not available' };
   },
 };
