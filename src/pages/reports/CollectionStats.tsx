@@ -1,4 +1,5 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   DollarSign,
   TrendingUp,
@@ -8,6 +9,10 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { reportsApi } from '@/api/reports';
+import { pledgesApi } from '@/api/pledges';
+import { Pledge } from '@/types';
 import {
   BarChart,
   Bar,
@@ -25,39 +30,17 @@ import {
 const COLORS = ['hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(199, 89%, 48%)', 'hsl(0, 84%, 60%)'];
 
 const CollectionStats: React.FC = () => {
-  // Mock data
-  const stats = {
-    totalPledges: 156,
-    totalCollectedETB: 2450000,
-    totalCollectedUSD: 45000,
-    remainingBalanceETB: 850000,
-    remainingBalanceUSD: 15000,
-    paidCount: 89,
-    pendingCount: 45,
-    partialCount: 10,
-    overdueCount: 12,
-  };
+  // Fetch collection stats from backend
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
+    queryKey: ['collectionStats'],
+    queryFn: reportsApi.getCollectionStats,
+  });
 
-  const pledgeStatusData = [
-    { name: 'Paid', value: stats.paidCount, color: COLORS[0] },
-    { name: 'Pending', value: stats.pendingCount, color: COLORS[1] },
-    { name: 'Partial', value: stats.partialCount, color: COLORS[2] },
-    { name: 'Overdue', value: stats.overdueCount, color: COLORS[3] },
-  ];
-
-  const collectionByTypeData = [
-    { name: 'Cash (ETB)', amount: 2450000 },
-    { name: 'Cash (USD)', amount: 45000 * 56 }, // Converted to ETB for comparison
-  ];
-
-  const monthlyTrendData = [
-    { month: 'Jul', collected: 180000, pledged: 250000 },
-    { month: 'Aug', collected: 220000, pledged: 280000 },
-    { month: 'Sep', collected: 195000, pledged: 240000 },
-    { month: 'Oct', collected: 280000, pledged: 320000 },
-    { month: 'Nov', collected: 310000, pledged: 350000 },
-    { month: 'Dec', collected: 265000, pledged: 300000 },
-  ];
+  // Fetch all pledges for additional calculations
+  const { data: pledges = [] } = useQuery({
+    queryKey: ['allPledges'],
+    queryFn: pledgesApi.getAll,
+  });
 
   const formatCurrency = (value: number, currency: string = 'ETB') => {
     return new Intl.NumberFormat('en-US', {
@@ -67,7 +50,45 @@ const CollectionStats: React.FC = () => {
     }).format(value);
   };
 
-  const collectionRate = Math.round((stats.paidCount / stats.totalPledges) * 100);
+  if (statsLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (statsError) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load collection statistics. Please try again.</p>
+      </div>
+    );
+  }
+
+  // Calculate from real data or use API response
+  const calculatedStats = {
+    totalPledges: stats?.totalPledges || pledges.length,
+    totalCollectedETB: stats?.totalCollectedETB || 0,
+    totalCollectedUSD: stats?.totalCollectedUSD || 0,
+    remainingBalanceETB: stats?.remainingBalanceETB || 0,
+    remainingBalanceUSD: stats?.remainingBalanceUSD || 0,
+    paidCount: stats?.paidCount || pledges.filter((p: Pledge) => p.status === 'paid').length,
+    pendingCount: stats?.pendingCount || pledges.filter((p: Pledge) => p.status === 'pending').length,
+    partialCount: stats?.partialCount || pledges.filter((p: Pledge) => p.status === 'partial').length,
+    overdueCount: stats?.overdueCount || pledges.filter((p: Pledge) => p.status === 'overdue').length,
+  };
+
+  const pledgeStatusData = [
+    { name: 'Paid', value: calculatedStats.paidCount, color: COLORS[0] },
+    { name: 'Pending', value: calculatedStats.pendingCount, color: COLORS[1] },
+    { name: 'Partial', value: calculatedStats.partialCount, color: COLORS[2] },
+    { name: 'Overdue', value: calculatedStats.overdueCount, color: COLORS[3] },
+  ];
+
+  const collectionRate = calculatedStats.totalPledges > 0 
+    ? Math.round((calculatedStats.paidCount / calculatedStats.totalPledges) * 100)
+    : 0;
 
   return (
     <div className="space-y-6 fade-in">
@@ -81,28 +102,26 @@ const CollectionStats: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Collected (ETB)"
-          value={formatCurrency(stats.totalCollectedETB)}
+          value={formatCurrency(calculatedStats.totalCollectedETB)}
           icon={DollarSign}
           iconColor="text-success"
-          trend={{ value: 12.5, isPositive: true }}
         />
         <StatCard
           title="Total Collected (USD)"
-          value={formatCurrency(stats.totalCollectedUSD, 'USD')}
+          value={formatCurrency(calculatedStats.totalCollectedUSD, 'USD')}
           icon={TrendingUp}
           iconColor="text-primary"
-          trend={{ value: 8.3, isPositive: true }}
         />
         <StatCard
           title="Total Pledges"
-          value={stats.totalPledges}
+          value={calculatedStats.totalPledges}
           icon={FileText}
           iconColor="text-info"
         />
         <StatCard
           title="Collection Rate"
           value={`${collectionRate}%`}
-          subtitle={`${stats.paidCount} of ${stats.totalPledges} fully paid`}
+          subtitle={`${calculatedStats.paidCount} of ${calculatedStats.totalPledges} fully paid`}
           icon={CheckCircle}
           iconColor="text-success"
         />
@@ -115,7 +134,7 @@ const CollectionStats: React.FC = () => {
             <div>
               <p className="text-sm text-muted-foreground">Remaining Balance (ETB)</p>
               <p className="text-2xl font-bold text-destructive mt-1">
-                {formatCurrency(stats.remainingBalanceETB)}
+                {formatCurrency(calculatedStats.remainingBalanceETB)}
               </p>
             </div>
             <div className="p-3 rounded-lg bg-destructive/10">
@@ -128,7 +147,7 @@ const CollectionStats: React.FC = () => {
             <div>
               <p className="text-sm text-muted-foreground">Remaining Balance (USD)</p>
               <p className="text-2xl font-bold text-destructive mt-1">
-                {formatCurrency(stats.remainingBalanceUSD, 'USD')}
+                {formatCurrency(calculatedStats.remainingBalanceUSD, 'USD')}
               </p>
             </div>
             <div className="p-3 rounded-lg bg-destructive/10">
@@ -140,29 +159,6 @@ const CollectionStats: React.FC = () => {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Collection Trend */}
-        <div className="stat-card">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Collection vs Pledged Trend</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthlyTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                }}
-                formatter={(value: number) => formatCurrency(value)}
-              />
-              <Legend />
-              <Bar dataKey="pledged" fill="hsl(var(--muted))" name="Pledged" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="collected" fill="hsl(var(--primary))" name="Collected" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
         {/* Pledge Status Distribution */}
         <div className="stat-card">
           <h3 className="text-lg font-semibold text-foreground mb-4">Pledge Status Distribution</h3>
@@ -206,24 +202,74 @@ const CollectionStats: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* Collection Summary */}
+        <div className="stat-card">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Collection Summary</h3>
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-success/10 border border-success/20">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">ETB Collected</span>
+                <span className="text-2xl font-bold text-success">
+                  {formatCurrency(calculatedStats.totalCollectedETB)}
+                </span>
+              </div>
+              <div className="mt-2 h-2 bg-success/20 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-success rounded-full"
+                  style={{ 
+                    width: `${calculatedStats.remainingBalanceETB + calculatedStats.totalCollectedETB > 0 
+                      ? (calculatedStats.totalCollectedETB / (calculatedStats.remainingBalanceETB + calculatedStats.totalCollectedETB)) * 100 
+                      : 0}%` 
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatCurrency(calculatedStats.remainingBalanceETB)} remaining
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">USD Collected</span>
+                <span className="text-2xl font-bold text-primary">
+                  {formatCurrency(calculatedStats.totalCollectedUSD, 'USD')}
+                </span>
+              </div>
+              <div className="mt-2 h-2 bg-primary/20 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary rounded-full"
+                  style={{ 
+                    width: `${calculatedStats.remainingBalanceUSD + calculatedStats.totalCollectedUSD > 0 
+                      ? (calculatedStats.totalCollectedUSD / (calculatedStats.remainingBalanceUSD + calculatedStats.totalCollectedUSD)) * 100 
+                      : 0}%` 
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatCurrency(calculatedStats.remainingBalanceUSD, 'USD')} remaining
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-lg bg-success/10 border border-success/20 text-center">
-          <p className="text-3xl font-bold text-success">{stats.paidCount}</p>
+          <p className="text-3xl font-bold text-success">{calculatedStats.paidCount}</p>
           <p className="text-sm text-muted-foreground mt-1">Fully Paid</p>
         </div>
         <div className="p-4 rounded-lg bg-warning/10 border border-warning/20 text-center">
-          <p className="text-3xl font-bold text-warning">{stats.pendingCount}</p>
+          <p className="text-3xl font-bold text-warning">{calculatedStats.pendingCount}</p>
           <p className="text-sm text-muted-foreground mt-1">Pending</p>
         </div>
         <div className="p-4 rounded-lg bg-info/10 border border-info/20 text-center">
-          <p className="text-3xl font-bold text-info">{stats.partialCount}</p>
+          <p className="text-3xl font-bold text-info">{calculatedStats.partialCount}</p>
           <p className="text-sm text-muted-foreground mt-1">Partial Payment</p>
         </div>
         <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-center">
-          <p className="text-3xl font-bold text-destructive">{stats.overdueCount}</p>
+          <p className="text-3xl font-bold text-destructive">{calculatedStats.overdueCount}</p>
           <p className="text-sm text-muted-foreground mt-1">Overdue</p>
         </div>
       </div>

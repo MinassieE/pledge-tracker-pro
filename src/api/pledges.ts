@@ -1,35 +1,65 @@
 import api from './axios';
-import { Pledge, ApiResponse, PaginatedResponse, PledgeStatus, PledgeType } from '@/types';
-
-export interface PledgeFilters {
-  status?: PledgeStatus;
-  type?: PledgeType;
-  followUpId?: string;
-  page?: number;
-  limit?: number;
-  search?: string;
-}
+import { 
+  Pledge, 
+  PledgesListResponse, 
+  SinglePledgeResponse, 
+  PledgeStatus, 
+  ContributionType,
+  ApiResponse 
+} from '@/types';
 
 // Response types matching backend
-interface MyPledgesResponse {
-  success: boolean;
-  message: string;
-  pledges: Pledge[];
-}
-
-interface SinglePledgeResponse {
-  success: boolean;
-  message: string;
-  pledge: Pledge;
-}
-
 interface DuePledgesResponse {
   success: boolean;
   count: number;
   data: Pledge[];
 }
 
+interface AssignPledgeResponse {
+  success: boolean;
+  message: string;
+  pledge?: Pledge;
+}
+
+// Payload for creating a pledge
+export interface CreatePledgePayload {
+  full_name: string;
+  phone_number: string;
+  alt_phone_number?: string;
+  email?: string;
+  promised_amount?: number;
+  contribution_type: ContributionType;
+  material_type?: string;
+  material_quantity?: number;
+  other_description?: string;
+  promised_start_date: string;
+  promised_end_date?: string;
+  paper_form_image?: string;
+  assigned_followup?: string;
+}
+
+// Payload for updating a pledge (admin)
 export interface UpdatePledgePayload {
+  full_name?: string;
+  phone_number?: string;
+  alt_phone_number?: string;
+  email?: string;
+  promised_amount?: number;
+  contribution_type?: ContributionType;
+  material_type?: string;
+  material_quantity?: number;
+  other_description?: string;
+  payment?: {
+    amount: number;
+    method: string;
+  };
+  remark?: {
+    comment: string;
+  };
+}
+
+// Payload for follow-up user updating their assigned pledge
+export interface FollowUpUpdatePayload {
   alt_phone_number?: string;
   email?: string;
   material_quantity?: number;
@@ -44,84 +74,109 @@ export interface UpdatePledgePayload {
 }
 
 export const pledgesApi = {
-  // For admin/superAdmin
-  getAll: async (filters: PledgeFilters = {}): Promise<PaginatedResponse<Pledge>> => {
-    const params = new URLSearchParams();
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.limit) params.append('limit', filters.limit.toString());
-    if (filters.status) params.append('status', filters.status);
-    if (filters.type) params.append('type', filters.type);
-    if (filters.search) params.append('search', filters.search);
-    
-    const response = await api.get<PaginatedResponse<Pledge>>(`/pledges?${params.toString()}`);
+  // ===== ADMIN/SUPERADMIN ENDPOINTS =====
+
+  // Get all pledges
+  getAll: async (): Promise<Pledge[]> => {
+    const response = await api.get<PledgesListResponse>('/admin/getAllPledges');
+    return response.data.pledges || [];
+  },
+
+  // Get single pledge by ID
+  getById: async (id: string): Promise<Pledge> => {
+    const response = await api.get<SinglePledgeResponse>(`/admin/getPledgeById/${id}`);
+    return response.data.pledge;
+  },
+
+  // Create new pledge
+  create: async (data: CreatePledgePayload): Promise<SinglePledgeResponse> => {
+    const response = await api.post<SinglePledgeResponse>('/admin/addPledge', data);
     return response.data;
   },
 
-  // For admin/superAdmin
-  getById: async (id: string): Promise<ApiResponse<Pledge>> => {
-    const response = await api.get<ApiResponse<Pledge>>(`/pledges/${id}`);
+  // Update pledge
+  update: async (id: string, data: UpdatePledgePayload): Promise<SinglePledgeResponse> => {
+    const response = await api.put<SinglePledgeResponse>(`/admin/updatePledge/${id}`, data);
     return response.data;
   },
 
-  create: async (data: Partial<Pledge>): Promise<ApiResponse<Pledge>> => {
-    const response = await api.post<ApiResponse<Pledge>>('/pledges', data);
-    return response.data;
-  },
-
-  update: async (id: string, data: Partial<Pledge>): Promise<ApiResponse<Pledge>> => {
-    const response = await api.put<ApiResponse<Pledge>>(`/pledges/${id}`, data);
-    return response.data;
-  },
-
+  // NOTE: No delete endpoint exists in backend
   delete: async (id: string): Promise<ApiResponse<null>> => {
-    const response = await api.delete<ApiResponse<null>>(`/pledges/${id}`);
+    console.warn('pledgesApi.delete: No backend endpoint available yet');
+    return { success: false, data: null, message: 'Endpoint not available' };
+  },
+
+  // Get unassigned pledges
+  getUnassigned: async (): Promise<Pledge[]> => {
+    const response = await api.get<PledgesListResponse>('/admin/getUnassignedPledges');
+    return response.data.pledges || [];
+  },
+
+  // Get pledges by follow-up user
+  getByFollowUp: async (followUpId: string): Promise<Pledge[]> => {
+    const response = await api.get<PledgesListResponse>(`/admin/getPledgesByFollowUp/${followUpId}`);
+    return response.data.pledges || [];
+  },
+
+  // Get pledges by status
+  getByStatus: async (status: PledgeStatus): Promise<Pledge[]> => {
+    const response = await api.get<PledgesListResponse>(`/admin/getPledgesByStatus/${status}`);
+    return response.data.pledges || [];
+  },
+
+  // Get pledges by contribution type
+  getByContributionType: async (type: ContributionType): Promise<Pledge[]> => {
+    const response = await api.get<PledgesListResponse>(`/admin/getPledgesByContributionType/${type}`);
+    return response.data.pledges || [];
+  },
+
+  // Assign single pledge to follow-up
+  assignToFollowUp: async (pledgeId: string, followUpId: string): Promise<AssignPledgeResponse> => {
+    const response = await api.post<AssignPledgeResponse>('/admin/assignPledgeToFollowUp', {
+      pledgeId,
+      followUpId,
+    });
     return response.data;
   },
 
-  getByFollowUp: async (followUpId: string): Promise<PaginatedResponse<Pledge>> => {
-    const response = await api.get<PaginatedResponse<Pledge>>(`/pledges/by-follow-up/${followUpId}`);
+  // Assign multiple pledges to follow-up
+  assignMultipleToFollowUp: async (pledgeIds: string[], followUpId: string): Promise<AssignPledgeResponse> => {
+    const response = await api.post<AssignPledgeResponse>('/admin/assignMultiplePledgesToFollowUp', {
+      pledgeIds,
+      followUpId,
+    });
     return response.data;
   },
 
-  getByStatus: async (status: PledgeStatus): Promise<PaginatedResponse<Pledge>> => {
-    const response = await api.get<PaginatedResponse<Pledge>>(`/pledges/by-status?status=${status}`);
-    return response.data;
+  // Get due monthly pledges
+  getDueMonthly: async (): Promise<Pledge[]> => {
+    const response = await api.get<DuePledgesResponse>('/admin/getDueMonthlyPledges');
+    return response.data.data || [];
   },
 
-  getByType: async (type: PledgeType): Promise<PaginatedResponse<Pledge>> => {
-    const response = await api.get<PaginatedResponse<Pledge>>(`/pledges/by-type?type=${type}`);
-    return response.data;
+  // Get overdue pledges
+  getOverdue: async (): Promise<Pledge[]> => {
+    const response = await api.get<DuePledgesResponse>('/admin/getOverduePledges');
+    return response.data.data || [];
   },
 
   // ===== FOLLOW-UP USER ENDPOINTS =====
 
   // Get all pledges assigned to current follow-up user
   getMyPledges: async (): Promise<Pledge[]> => {
-    const response = await api.get<MyPledgesResponse>('/myPledges');
+    const response = await api.get<{ success: boolean; message: string; pledges: Pledge[] }>('/admin/myPledges');
     return response.data.pledges || [];
   },
 
   // Get single pledge for follow-up user
   getMyPledgeById: async (id: string): Promise<Pledge> => {
-    const response = await api.get<SinglePledgeResponse>(`/myPledges/${id}`);
+    const response = await api.get<SinglePledgeResponse>(`/admin/myPledges/${id}`);
     return response.data.pledge;
   },
 
   // Update pledge (payment + remark) for follow-up user
-  updateMyPledge: async (id: string, data: UpdatePledgePayload): Promise<Pledge> => {
-    const response = await api.put<SinglePledgeResponse>(`/myPledges/${id}`, data);
+  updateMyPledge: async (id: string, data: FollowUpUpdatePayload): Promise<Pledge> => {
+    const response = await api.put<SinglePledgeResponse>(`/admin/myPledges/${id}`, data);
     return response.data.pledge;
-  },
-
-  // Get due monthly pledges
-  getDueMonthly: async (): Promise<Pledge[]> => {
-    const response = await api.get<DuePledgesResponse>('/getDueMonthlyPledges');
-    return response.data.data || [];
-  },
-
-  // Get overdue pledges
-  getOverdue: async (): Promise<Pledge[]> => {
-    const response = await api.get<DuePledgesResponse>('/getOverduePledges');
-    return response.data.data || [];
   },
 };

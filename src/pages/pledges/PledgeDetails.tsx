@@ -47,7 +47,7 @@ const PledgeDetails: React.FC = () => {
   // Fetch pledge based on role
   const { data: pledge, isLoading, error } = useQuery({
     queryKey: ['pledge', id],
-    queryFn: () => isFollowUp ? pledgesApi.getMyPledgeById(id!) : pledgesApi.getById(id!).then(res => res.data),
+    queryFn: () => isFollowUp ? pledgesApi.getMyPledgeById(id!) : pledgesApi.getById(id!),
     enabled: !!id,
   });
 
