@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   DollarSign,
@@ -7,12 +7,23 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
+  Calendar,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { reportsApi } from '@/api/reports';
 import { pledgesApi } from '@/api/pledges';
 import { Pledge } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   BarChart,
   Bar,
@@ -30,6 +41,9 @@ import {
 const COLORS = ['hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(199, 89%, 48%)', 'hsl(0, 84%, 60%)'];
 
 const CollectionStats: React.FC = () => {
+  const [timeFilter, setTimeFilter] = useState<string>('all');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
   // Fetch collection stats from backend
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ['collectionStats'],
@@ -41,6 +55,87 @@ const CollectionStats: React.FC = () => {
     queryKey: ['allPledges'],
     queryFn: pledgesApi.getAll,
   });
+
+  // Filter pledges based on time filter
+  const getFilteredPledges = () => {
+    if (timeFilter === 'all') return pledges;
+
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date = now;
+
+    switch (timeFilter) {
+      case 'today':
+        startDate = new Date(now.setHours(0, 0, 0, 0));
+        break;
+      case 'week':
+        startDate = new Date(now.setDate(now.getDate() - 7));
+        break;
+      case 'month':
+        startDate = new Date(now.setMonth(now.getMonth() - 1));
+        break;
+      case 'quarter':
+        startDate = new Date(now.setMonth(now.getMonth() - 3));
+        break;
+      case 'year':
+        startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+        break;
+      case 'custom':
+        if (!customStartDate || !customEndDate) return pledges;
+        startDate = new Date(customStartDate);
+        endDate = new Date(customEndDate);
+        break;
+      default:
+        return pledges;
+    }
+
+    return pledges.filter((pledge: Pledge) => {
+      // Filter by payment dates within the time range
+      const hasPaymentInRange = pledge.payment_history?.some((payment: any) => {
+        const paymentDate = new Date(payment.date || payment.paidAt);
+        return paymentDate >= startDate && paymentDate <= endDate;
+      });
+      return hasPaymentInRange;
+    });
+  };
+
+  const filteredPledges = getFilteredPledges();
+
+  // Calculate stats from filtered pledges
+  const calculateStats = () => {
+    let totalCollectedETB = 0;
+    let totalCollectedUSD = 0;
+    let totalPledgedETB = 0;
+    let totalPledgedUSD = 0;
+
+    filteredPledges.forEach((pledge: Pledge) => {
+      const currency = pledge.currency || 'ETB';
+      const amountPaid = pledge.amount_paid || 0;
+      const promisedAmount = pledge.promised_amount || 0;
+
+      if (currency === 'ETB') {
+        totalCollectedETB += amountPaid;
+        totalPledgedETB += promisedAmount;
+      } else if (currency === 'USD') {
+        totalCollectedUSD += amountPaid;
+        totalPledgedUSD += promisedAmount;
+      }
+    });
+
+    return {
+      totalPledges: filteredPledges.length,
+      totalCollectedETB,
+      totalCollectedUSD,
+      remainingBalanceETB: totalPledgedETB - totalCollectedETB,
+      remainingBalanceUSD: totalPledgedUSD - totalCollectedUSD,
+      paidCount: filteredPledges.filter((p: Pledge) => p.status === 'paid').length,
+      pendingCount: filteredPledges.filter((p: Pledge) => p.status === 'notPaid').length,
+      partialCount: filteredPledges.filter((p: Pledge) => p.status === 'partial').length,
+      overdueCount: filteredPledges.filter((p: Pledge) => p.overdue).length,
+    };
+  };
+
+  const calculatedStats = calculateStats();
 
   const formatCurrency = (value: number, currency: string = 'ETB') => {
     return new Intl.NumberFormat('en-US', {
@@ -66,19 +161,6 @@ const CollectionStats: React.FC = () => {
     );
   }
 
-  // Calculate from real data or use API response
-  const calculatedStats = {
-    totalPledges: stats?.totalPledges || pledges.length,
-    totalCollectedETB: stats?.totalCollectedETB || 0,
-    totalCollectedUSD: stats?.totalCollectedUSD || 0,
-    remainingBalanceETB: stats?.remainingBalanceETB || 0,
-    remainingBalanceUSD: stats?.remainingBalanceUSD || 0,
-    paidCount: stats?.paidCount || pledges.filter((p: Pledge) => p.status === 'paid').length,
-    pendingCount: stats?.pendingCount || pledges.filter((p: Pledge) => p.status === 'pending').length,
-    partialCount: stats?.partialCount || pledges.filter((p: Pledge) => p.status === 'partial').length,
-    overdueCount: stats?.overdueCount || pledges.filter((p: Pledge) => p.status === 'overdue').length,
-  };
-
   const pledgeStatusData = [
     { name: 'Paid', value: calculatedStats.paidCount, color: COLORS[0] },
     { name: 'Pending', value: calculatedStats.pendingCount, color: COLORS[1] },
@@ -96,6 +178,73 @@ const CollectionStats: React.FC = () => {
       <div>
         <h2 className="text-2xl font-bold text-foreground">Collection Statistics</h2>
         <p className="text-muted-foreground">Overview of pledge collection performance</p>
+      </div>
+
+      {/* Time Filter Section */}
+      <div className="stat-card">
+        <div className="flex items-center gap-2 mb-4">
+          <Calendar className="h-5 w-5 text-primary" />
+          <h3 className="text-lg font-semibold text-foreground">Time Filter</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-1">
+            <Label htmlFor="timeFilter">Filter By</Label>
+            <Select value={timeFilter} onValueChange={setTimeFilter}>
+              <SelectTrigger id="timeFilter">
+                <SelectValue placeholder="Select time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="week">Last 7 Days</SelectItem>
+                <SelectItem value="month">Last Month</SelectItem>
+                <SelectItem value="quarter">Last Quarter</SelectItem>
+                <SelectItem value="year">Last Year</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {timeFilter === 'custom' && (
+            <>
+              <div>
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate">End Date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+        {timeFilter !== 'all' && (
+          <div className="mt-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+            <p className="text-sm text-foreground">
+              <strong>Showing:</strong> Collections from{' '}
+              {timeFilter === 'custom' && customStartDate && customEndDate
+                ? `${new Date(customStartDate).toLocaleDateString()} to ${new Date(customEndDate).toLocaleDateString()}`
+                : timeFilter === 'today'
+                ? 'today'
+                : timeFilter === 'week'
+                ? 'the last 7 days'
+                : timeFilter === 'month'
+                ? 'the last month'
+                : timeFilter === 'quarter'
+                ? 'the last quarter'
+                : 'the last year'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}

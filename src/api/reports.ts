@@ -26,10 +26,9 @@ export const reportsApi = {
     return response.data.data;
   },
 
-  // NOTE: No endpoint exists for getting all follow-ups' performance
-  // This would need to be created on the backend for the performance ranking table
+  // Get all follow-ups' performance
   getAllFollowUpPerformance: async (): Promise<FollowUpPerformance[]> => {
-    console.warn('reportsApi.getAllFollowUpPerformance: No backend endpoint available yet');
-    return [];
+    const response = await api.get<{ success: boolean; data: FollowUpPerformance[] }>('/admin/allFollowUpPerformance');
+    return response.data.data || [];
   },
 };

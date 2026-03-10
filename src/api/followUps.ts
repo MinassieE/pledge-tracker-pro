@@ -22,8 +22,8 @@ interface UpdateStatusResponse {
 
 export const followUpsApi = {
   getAll: async (): Promise<FollowUpUser[]> => {
-    const response = await api.get<FollowUpsListResponse>('/admin/getAllFollowUps');
-    return response.data.followUps || [];
+    const response = await api.get<{ success: boolean; data: FollowUpUser[] }>('/admin/getAllFollowUps');
+    return response.data.data || [];
   },
 
   getById: async (id: string): Promise<FollowUpUser> => {

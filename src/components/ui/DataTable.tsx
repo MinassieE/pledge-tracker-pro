@@ -44,6 +44,27 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: (row, columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const rowData = row.original as any;
+      
+      // Search in common fields including phone numbers
+      const searchableFields = [
+        rowData.full_name,
+        rowData.fullName,
+        rowData.phone_number,
+        rowData.phone,
+        rowData.email,
+        rowData.alt_phone_number,
+        rowData.status,
+        rowData.contribution_type,
+        rowData.contributionType,
+      ];
+      
+      return searchableFields.some(field => 
+        field && String(field).toLowerCase().includes(search)
+      );
+    },
     state: {
       sorting,
       columnFilters,

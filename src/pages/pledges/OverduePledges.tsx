@@ -49,20 +49,21 @@ const OverduePledges: React.FC = () => {
       ),
     },
     {
-      accessorKey: 'amount',
+      accessorKey: 'promised_amount',
       header: 'Amount',
       cell: ({ row }) => {
-        const pledgeType = row.original.pledgeType || row.original.pledge_type;
-        return pledgeType === 'cash'
-          ? formatCurrency(row.original.amount, row.original.currency)
-          : row.original.materialType || row.original.material_type || '-';
+        const type = row.original.contribution_type || row.original.contributionType;
+        if (type === 'material') {
+          return row.original.material_type || row.original.materialType || '-';
+        }
+        return formatCurrency(row.original.promised_amount || row.original.amount, row.original.currency);
       },
     },
     {
-      accessorKey: 'promisedDate',
+      accessorKey: 'promised_end_date',
       header: 'Due Date',
       cell: ({ row }) => {
-        const date = row.original.promisedDate || row.original.promised_date;
+        const date = row.original.promised_end_date || row.original.promised_date || row.original.promisedDate;
         return (
           <span className="text-destructive font-medium">
             {date ? new Date(date).toLocaleDateString() : 'N/A'}
@@ -74,7 +75,7 @@ const OverduePledges: React.FC = () => {
       id: 'daysOverdue',
       header: 'Days Overdue',
       cell: ({ row }) => {
-        const date = row.original.promisedDate || row.original.promised_date;
+        const date = row.original.promised_end_date || row.original.promised_date || row.original.promisedDate;
         if (!date) return '-';
         const days = getDaysOverdue(date);
         return (
@@ -85,13 +86,12 @@ const OverduePledges: React.FC = () => {
       },
     },
     {
-      accessorKey: 'totalPaid',
+      accessorKey: 'amount_paid',
       header: 'Paid',
       cell: ({ row }) => {
-        const pledgeType = row.original.pledgeType || row.original.pledge_type;
-        return pledgeType === 'cash'
-          ? formatCurrency(row.original.totalPaid || row.original.total_paid, row.original.currency)
-          : '-';
+        const type = row.original.contribution_type || row.original.contributionType;
+        if (type === 'material') return '-';
+        return formatCurrency(row.original.amount_paid || row.original.total_paid || row.original.totalPaid, row.original.currency);
       },
     },
     {

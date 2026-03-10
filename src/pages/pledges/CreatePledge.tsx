@@ -29,6 +29,7 @@ const pledgeSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   contribution_type: z.enum(['oneTime', 'monthly', 'material']),
   promised_amount: z.number().optional(),
+  currency: z.enum(['ETB', 'USD']).default('ETB'),
   material_type: z.string().optional(),
   material_quantity: z.number().optional(),
   other_description: z.string().optional(),
@@ -76,6 +77,7 @@ const CreatePledge: React.FC = () => {
     resolver: zodResolver(pledgeSchema),
     defaultValues: {
       contribution_type: 'oneTime',
+      currency: 'ETB',
     },
   });
 
@@ -86,17 +88,20 @@ const CreatePledge: React.FC = () => {
       alt_phone_number: data.alt_phone_number || '',
       email: data.email || '',
       contribution_type: data.contribution_type,
+      currency: data.currency,
       promised_start_date: data.promised_start_date,
       promised_end_date: data.promised_end_date || '',
+      paper_form_image: 'default_form.png', // Default value for manual entry
       assigned_followup: data.assigned_followup || '',
     };
 
     if (data.contribution_type === 'material') {
+      payload.promised_amount = 0; // Material pledges have 0 amount
       payload.material_type = data.material_type || '';
       payload.material_quantity = data.material_quantity;
       payload.other_description = data.other_description || '';
     } else {
-      payload.promised_amount = data.promised_amount;
+      payload.promised_amount = data.promised_amount || 0;
     }
 
     createMutation.mutate(payload);
@@ -219,14 +224,31 @@ const CreatePledge: React.FC = () => {
           </div>
 
           {contributionType !== 'material' ? (
-            <div className="space-y-2">
-              <Label htmlFor="promised_amount">Promised Amount (ETB) *</Label>
-              <Input
-                id="promised_amount"
-                type="number"
-                placeholder="Enter amount"
-                {...register('promised_amount', { valueAsNumber: true })}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="promised_amount">Promised Amount *</Label>
+                <Input
+                  id="promised_amount"
+                  type="number"
+                  placeholder="Enter amount"
+                  {...register('promised_amount', { valueAsNumber: true })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Currency *</Label>
+                <Select
+                  defaultValue="ETB"
+                  onValueChange={(value: 'ETB' | 'USD') => setValue('currency', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ETB">ETB</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           ) : (
             <>

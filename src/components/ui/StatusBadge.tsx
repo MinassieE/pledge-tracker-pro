@@ -16,6 +16,10 @@ const statusConfig: Record<PledgeStatus, { label: string; className: string }> =
     label: 'Pending',
     className: 'bg-warning/10 text-warning border-warning/20',
   },
+  notPaid: {
+    label: 'Not Paid',
+    className: 'bg-warning/10 text-warning border-warning/20',
+  },
   partial: {
     label: 'Partial',
     className: 'bg-info/10 text-info border-info/20',
@@ -27,7 +31,7 @@ const statusConfig: Record<PledgeStatus, { label: string; className: string }> =
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig.pending; // Fallback to pending if status not found
   
   return (
     <span

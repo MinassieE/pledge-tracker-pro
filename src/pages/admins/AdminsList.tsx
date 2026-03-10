@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ColumnDef } from '@tanstack/react-table';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ColumnDef } from '@tantml:react-table';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/DataTable';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +23,11 @@ const AdminsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [formData, setFormData] = useState({ first_name: '', middle_name: '', email: '' });
 
-  // Note: No backend endpoint exists to list all admins
-  // This is a placeholder - you'll need to create the endpoint
-  const admins: Admin[] = [];
+  // Fetch admins from backend
+  const { data: admins = [], isLoading, error } = useQuery({
+    queryKey: ['allAdmins'],
+    queryFn: adminsApi.getAll,
+  });
 
   // Create mutation
   const createMutation = useMutation({
@@ -91,6 +94,22 @@ const AdminsList: React.FC = () => {
       ),
     },
     {
+      accessorKey: 'role',
+      header: 'Role',
+      cell: ({ row }) => {
+        const role = row.original.role;
+        return (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            role === 'superAdmin' 
+              ? 'bg-primary/10 text-primary border border-primary/20' 
+              : 'bg-info/10 text-info border border-info/20'
+          }`}>
+            {role === 'superAdmin' ? 'Super Admin' : 'Admin'}
+          </span>
+        );
+      },
+    },
+    {
       accessorKey: 'createdAt',
       header: 'Created At',
       cell: ({ row }) => (
@@ -118,26 +137,34 @@ const AdminsList: React.FC = () => {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load admins. Please try again.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Manage Admins</h2>
-          <p className="text-muted-foreground">Add admin users (list endpoint not available)</p>
+          <p className="text-muted-foreground">Add admin users</p>
         </div>
         <Button onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Admin
         </Button>
-      </div>
-
-      {/* Info Banner */}
-      <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
-        <p className="text-sm text-muted-foreground">
-          <strong>Note:</strong> The backend does not have an endpoint to list all admins. 
-          You can create new admins, but the list will be empty until the endpoint is added.
-        </p>
       </div>
 
       {/* Table */}

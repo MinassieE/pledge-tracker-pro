@@ -15,12 +15,10 @@ interface CreateAdminResponse {
 }
 
 export const adminsApi = {
-  // NOTE: No backend endpoint exists for getting all admins
-  // This will need to be created on the backend
+  // Get all admins (SuperAdmin only)
   getAll: async (): Promise<Admin[]> => {
-    // Placeholder - endpoint doesn't exist yet
-    console.warn('adminsApi.getAll: No backend endpoint available yet');
-    return [];
+    const response = await api.get<{ success: boolean; count: number; data: Admin[] }>('/admin/getAllAdmins');
+    return response.data.data || [];
   },
 
   // NOTE: No backend endpoint exists for getting admin by ID

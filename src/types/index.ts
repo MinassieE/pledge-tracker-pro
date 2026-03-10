@@ -30,7 +30,7 @@ export interface FollowUpUser extends User {
 
 export type ContributionType = 'oneTime' | 'monthly' | 'material';
 export type PledgeType = 'cash' | 'material';
-export type PledgeStatus = 'pending' | 'paid' | 'partial' | 'overdue';
+export type PledgeStatus = 'pending' | 'paid' | 'partial' | 'overdue' | 'notPaid';
 
 export interface Payment {
   _id?: string;
@@ -38,6 +38,7 @@ export interface Payment {
   currency?: 'ETB' | 'USD';
   paidAt?: string;
   paid_at?: string;
+  date?: string; // Backend uses 'date' field
   method?: string;
   notes?: string;
 }
@@ -81,9 +82,13 @@ export interface Pledge {
   assigned_followup?: string | FollowUpUser;
   notes?: string;
   payments?: Payment[];
+  payment_history?: Payment[];
   remarks?: Remark[];
   totalPaid?: number;
   total_paid?: number;
+  amount_paid?: number;
+  remaining_amount?: number;
+  percentage_paid?: number;
   createdAt?: string;
   created_at?: string;
   updatedAt?: string;

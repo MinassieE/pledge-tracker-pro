@@ -1,9 +1,12 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
 import { Trophy, TrendingUp, CheckCircle, Target } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import { DataTable } from '@/components/ui/DataTable';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { FollowUpPerformance as PerformanceData } from '@/types';
+import { reportsApi } from '@/api/reports';
 import {
   BarChart,
   Bar,
@@ -15,25 +18,23 @@ import {
 } from 'recharts';
 
 const FollowUpPerformance: React.FC = () => {
-  // Mock data
-  const performanceData: PerformanceData[] = [
-    { followUpId: '1', name: 'Marta Solomon', completedPledges: 24, totalCollected: 450000, overdueHandled: 5, successRate: 92 },
-    { followUpId: '2', name: 'Dawit Hailu', completedPledges: 18, totalCollected: 320000, overdueHandled: 3, successRate: 85 },
-    { followUpId: '3', name: 'Sara Tadesse', completedPledges: 22, totalCollected: 410000, overdueHandled: 4, successRate: 88 },
-    { followUpId: '4', name: 'Yonas Berhane', completedPledges: 15, totalCollected: 280000, overdueHandled: 6, successRate: 78 },
-    { followUpId: '5', name: 'Helen Gebre', completedPledges: 20, totalCollected: 380000, overdueHandled: 2, successRate: 90 },
-    { followUpId: '6', name: 'Kidist Alemu', completedPledges: 12, totalCollected: 220000, overdueHandled: 4, successRate: 72 },
-  ];
+  // Fetch performance data from backend
+  const { data: performanceData = [], isLoading, error } = useQuery({
+    queryKey: ['allFollowUpPerformance'],
+    queryFn: reportsApi.getAllFollowUpPerformance,
+  });
 
-  const topPerformer = performanceData.reduce((prev, current) => 
-    prev.successRate > current.successRate ? prev : current
-  );
+  const topPerformer = performanceData.length > 0 
+    ? performanceData.reduce((prev, current) => 
+        prev.successRate > current.successRate ? prev : current
+      )
+    : null;
 
   const totalCompleted = performanceData.reduce((sum, p) => sum + p.completedPledges, 0);
   const totalCollected = performanceData.reduce((sum, p) => sum + p.totalCollected, 0);
-  const avgSuccessRate = Math.round(
-    performanceData.reduce((sum, p) => sum + p.successRate, 0) / performanceData.length
-  );
+  const avgSuccessRate = performanceData.length > 0
+    ? Math.round(performanceData.reduce((sum, p) => sum + p.successRate, 0) / performanceData.length)
+    : 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -125,6 +126,22 @@ const FollowUpPerformance: React.FC = () => {
     .sort((a, b) => b.totalCollected - a.totalCollected)
     .slice(0, 6);
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-destructive">Failed to load performance data. Please try again.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 fade-in">
       {/* Header */}
@@ -137,8 +154,8 @@ const FollowUpPerformance: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Top Performer"
-          value={topPerformer.name}
-          subtitle={`${topPerformer.successRate}% success rate`}
+          value={topPerformer?.name || 'N/A'}
+          subtitle={topPerformer ? `${topPerformer.successRate}% success rate` : 'No data'}
           icon={Trophy}
           iconColor="text-warning"
         />

@@ -28,6 +28,7 @@ export interface CreatePledgePayload {
   alt_phone_number?: string;
   email?: string;
   promised_amount?: number;
+  currency: 'ETB' | 'USD';
   contribution_type: ContributionType;
   material_type?: string;
   material_quantity?: number;
@@ -45,6 +46,7 @@ export interface UpdatePledgePayload {
   alt_phone_number?: string;
   email?: string;
   promised_amount?: number;
+  currency?: 'ETB' | 'USD';
   contribution_type?: ContributionType;
   material_type?: string;
   material_quantity?: number;
@@ -100,10 +102,10 @@ export const pledgesApi = {
     return response.data;
   },
 
-  // NOTE: No delete endpoint exists in backend
+  // Delete pledge
   delete: async (id: string): Promise<ApiResponse<null>> => {
-    console.warn('pledgesApi.delete: No backend endpoint available yet');
-    return { success: false, data: null, message: 'Endpoint not available' };
+    const response = await api.delete<ApiResponse<null>>(`/admin/deletePledge/${id}`);
+    return response.data;
   },
 
   // Get unassigned pledges
@@ -178,5 +180,11 @@ export const pledgesApi = {
   updateMyPledge: async (id: string, data: FollowUpUpdatePayload): Promise<Pledge> => {
     const response = await api.put<SinglePledgeResponse>(`/admin/myPledges/${id}`, data);
     return response.data.pledge;
+  },
+
+  // Bulk import pledges
+  bulkImport: async (pledges: CreatePledgePayload[]): Promise<{ success: boolean; count: number; message: string }> => {
+    const response = await api.post<{ success: boolean; count: number; message: string }>('/admin/bulkAddPledges', { pledges });
+    return response.data;
   },
 };

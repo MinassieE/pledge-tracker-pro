@@ -51,16 +51,26 @@ const AdminDashboard: React.FC = () => {
     }).format(value);
   };
 
-  // Calculate total collected
-  const totalCollected = pledges.reduce((sum: number, pledge: Pledge) => {
-    const paid = pledge.total_paid || pledge.totalPaid || 0;
-    return sum + paid;
-  }, 0);
+  // Calculate total collected by currency
+  const totalCollectedETB = pledges
+    .filter((p: Pledge) => p.currency === 'ETB' || !p.currency)
+    .reduce((sum: number, pledge: Pledge) => {
+      const paid = pledge.amount_paid || pledge.total_paid || pledge.totalPaid || 0;
+      return sum + paid;
+    }, 0);
+
+  const totalCollectedUSD = pledges
+    .filter((p: Pledge) => p.currency === 'USD')
+    .reduce((sum: number, pledge: Pledge) => {
+      const paid = pledge.amount_paid || pledge.total_paid || pledge.totalPaid || 0;
+      return sum + paid;
+    }, 0);
 
   const stats = {
     assignedFollowUps: followUps.length,
     totalPledges: pledges.length,
-    totalCollectedETB: totalCollected,
+    totalCollectedETB,
+    totalCollectedUSD,
     pendingCount: pledges.filter((p: Pledge) => p.status === 'pending').length,
     overdueCount: overduePledges.length,
     dueThisMonth: dueMonthlyPledges.length,
@@ -80,7 +90,7 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-6 fade-in">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Assigned Follow-Ups"
           value={stats.assignedFollowUps}
@@ -94,8 +104,14 @@ const AdminDashboard: React.FC = () => {
           iconColor="text-info"
         />
         <StatCard
-          title="Total Collected"
+          title="Collected (ETB)"
           value={formatCurrency(stats.totalCollectedETB)}
+          icon={DollarSign}
+          iconColor="text-success"
+        />
+        <StatCard
+          title="Collected (USD)"
+          value={formatCurrency(stats.totalCollectedUSD, 'USD')}
           icon={DollarSign}
           iconColor="text-success"
         />

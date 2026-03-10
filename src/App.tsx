@@ -17,6 +17,8 @@ import AdminsList from "./pages/admins/AdminsList";
 import FollowUpsList from "./pages/followUps/FollowUpsList";
 import PledgesList from "./pages/pledges/PledgesList";
 import CreatePledge from "./pages/pledges/CreatePledge";
+import EditPledge from "./pages/pledges/EditPledge";
+import BulkImport from "./pages/pledges/BulkImport";
 import PledgeDetails from "./pages/pledges/PledgeDetails";
 import OverduePledges from "./pages/pledges/OverduePledges";
 import CollectionStats from "./pages/reports/CollectionStats";
@@ -27,6 +29,8 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 0, // Data is immediately stale
+      cacheTime: 0, // Don't cache data
     },
   },
 });
@@ -88,6 +92,22 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['superAdmin', 'admin']}>
                     <CreatePledge />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pledges/:id/edit"
+                element={
+                  <ProtectedRoute allowedRoles={['superAdmin', 'admin']}>
+                    <EditPledge />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pledges/bulk-import"
+                element={
+                  <ProtectedRoute allowedRoles={['superAdmin', 'admin']}>
+                    <BulkImport />
                   </ProtectedRoute>
                 }
               />
