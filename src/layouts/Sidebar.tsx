@@ -16,6 +16,8 @@ import {
   Calendar,
   TrendingUp,
   Shield,
+  FolderKanban,
+  KeyRound,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +38,12 @@ const navItems: NavItem[] = [
     href: '/dashboard',
     icon: LayoutDashboard,
     roles: ['superAdmin', 'admin', 'followUp'],
+  },
+  {
+    title: 'Manage Projects',
+    href: '/projects',
+    icon: FolderKanban,
+    roles: ['superAdmin'],
   },
   {
     title: 'Manage Admins',
@@ -90,6 +98,12 @@ const navItems: NavItem[] = [
     href: '/reports/performance',
     icon: Users,
     roles: ['superAdmin', 'admin'],
+  },
+  {
+    title: 'Custom Reports',
+    href: '/reports/custom',
+    icon: FileText,
+    roles: ['superAdmin'],
   },
 ];
 
@@ -187,7 +201,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
       </nav>
 
       {/* Footer */}
-      <div className="p-2 border-t border-sidebar-border">
+      <div className="p-2 border-t border-sidebar-border space-y-1">
+        <NavLink
+          to="/change-password"
+          className={cn(
+            'sidebar-link w-full',
+            isCollapsed && 'justify-center px-2'
+          )}
+          title={isCollapsed ? 'Change Password' : undefined}
+        >
+          <KeyRound className="h-5 w-5 flex-shrink-0" />
+          {!isCollapsed && <span className="text-sm">Change Password</span>}
+        </NavLink>
         <button
           onClick={logout}
           className={cn(

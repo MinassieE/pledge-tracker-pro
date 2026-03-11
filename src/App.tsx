@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
+import { ProjectProvider } from "@/context/ProjectContext";
 import { ProtectedRoute } from "@/router/ProtectedRoute";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 
@@ -12,9 +13,13 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ChangePassword from "./pages/auth/ChangePassword";
 import Dashboard from "./pages/dashboard/Dashboard";
 import AdminsList from "./pages/admins/AdminsList";
 import FollowUpsList from "./pages/followUps/FollowUpsList";
+import ProjectManagement from "./pages/projects/ProjectManagement";
+import UserAssignment from "./pages/projects/UserAssignment";
 import PledgesList from "./pages/pledges/PledgesList";
 import CreatePledge from "./pages/pledges/CreatePledge";
 import EditPledge from "./pages/pledges/EditPledge";
@@ -23,6 +28,7 @@ import PledgeDetails from "./pages/pledges/PledgeDetails";
 import OverduePledges from "./pages/pledges/OverduePledges";
 import CollectionStats from "./pages/reports/CollectionStats";
 import FollowUpPerformance from "./pages/reports/FollowUpPerformance";
+import CustomReports from "./pages/reports/CustomReports";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,14 +44,16 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
+      <ProjectProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
 
             {/* Protected routes with layout */}
@@ -58,12 +66,33 @@ const App = () => (
             >
               <Route path="/dashboard" element={<Dashboard />} />
               
+              {/* Change Password - All authenticated users */}
+              <Route path="/change-password" element={<ChangePassword />} />
+              
               {/* Admin management - SuperAdmin only */}
               <Route
                 path="/admins"
                 element={
                   <ProtectedRoute allowedRoles={['superAdmin']}>
                     <AdminsList />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Project management - SuperAdmin only */}
+              <Route
+                path="/projects"
+                element={
+                  <ProtectedRoute allowedRoles={['superAdmin']}>
+                    <ProjectManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/projects/:projectId/assignments"
+                element={
+                  <ProtectedRoute allowedRoles={['superAdmin']}>
+                    <UserAssignment />
                   </ProtectedRoute>
                 }
               />
@@ -106,7 +135,7 @@ const App = () => (
               <Route
                 path="/pledges/bulk-import"
                 element={
-                  <ProtectedRoute allowedRoles={['superAdmin', 'admin']}>
+                  <ProtectedRoute allowedRoles={['superAdmin']}>
                     <BulkImport />
                   </ProtectedRoute>
                 }
@@ -171,6 +200,14 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/reports/custom"
+                element={
+                  <ProtectedRoute allowedRoles={['superAdmin']}>
+                    <CustomReports />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
 
             {/* Catch-all */}
@@ -178,8 +215,9 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+    </ProjectProvider>
+  </AuthProvider>
+</QueryClientProvider>
 );
 
 export default App;

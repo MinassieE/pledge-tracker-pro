@@ -20,9 +20,12 @@ import { toast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { pledgesApi, CreatePledgePayload } from '@/api/pledges';
 import { followUpsApi } from '@/api/followUps';
+import { projectsApi } from '@/api/projects';
+import { useProject } from '@/context/ProjectContext';
 import { ContributionType } from '@/types';
 
 const pledgeSchema = z.object({
+  project_id: z.string().min(1, 'Please select a project'),
   full_name: z.string().min(2, 'Name must be at least 2 characters'),
   phone_number: z.string().min(10, 'Please enter a valid phone number'),
   alt_phone_number: z.string().optional(),
@@ -42,12 +45,20 @@ type PledgeFormData = z.infer<typeof pledgeSchema>;
 
 const CreatePledge: React.FC = () => {
   const navigate = useNavigate();
+  const { selectedProjectId } = useProject();
   const [contributionType, setContributionType] = useState<ContributionType>('oneTime');
+
+  // Fetch projects
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectsApi.getAll,
+  });
 
   // Fetch follow-up users from backend
   const { data: followUpUsers = [] } = useQuery({
-    queryKey: ['allFollowUps'],
+    queryKey: ['allFollowUps', selectedProjectId],
     queryFn: followUpsApi.getAll,
+    enabled: !!selectedProjectId,
   });
 
   const createMutation = useMutation({
@@ -76,13 +87,15 @@ const CreatePledge: React.FC = () => {
   } = useForm<PledgeFormData>({
     resolver: zodResolver(pledgeSchema),
     defaultValues: {
+      project_id: selectedProjectId || '',
       contribution_type: 'oneTime',
       currency: 'ETB',
     },
   });
 
   const onSubmit = async (data: PledgeFormData) => {
-    const payload: CreatePledgePayload = {
+    const payload: CreatePledgePayload & { project_id: string } = {
+      project_id: data.project_id,
       full_name: data.full_name,
       phone_number: data.phone_number,
       alt_phone_number: data.alt_phone_number || '',
@@ -122,6 +135,35 @@ const CreatePledge: React.FC = () => {
 
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="stat-card space-y-6">
+          <h3 className="text-lg font-semibold text-foreground border-b border-border pb-3">
+            Project Selection
+          </h3>
+
+          <div className="space-y-2">
+            <Label>Project *</Label>
+            <Select
+              defaultValue={selectedProjectId || ''}
+              onValueChange={(value) => setValue('project_id', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project._id} value={project._id}>
+                    {project.name}
+                    {project.status !== 'active' && ` (${project.status})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.project_id && (
+              <p className="text-sm text-destructive">{errors.project_id.message}</p>
+            )}
+          </div>
+        </div>
+
         <div className="stat-card space-y-6">
           <h3 className="text-lg font-semibold text-foreground border-b border-border pb-3">
             Pledger Information

@@ -150,6 +150,14 @@ export const pledgesApi = {
     return response.data;
   },
 
+  // Unassign pledge from follow-up
+  unassignFromFollowUp: async (pledgeId: string): Promise<AssignPledgeResponse> => {
+    const response = await api.post<AssignPledgeResponse>('/admin/unassignPledgeFromFollowUp', {
+      pledgeId,
+    });
+    return response.data;
+  },
+
   // Get due monthly pledges
   getDueMonthly: async (): Promise<Pledge[]> => {
     const response = await api.get<DuePledgesResponse>('/admin/getDueMonthlyPledges');
@@ -183,8 +191,11 @@ export const pledgesApi = {
   },
 
   // Bulk import pledges
-  bulkImport: async (pledges: CreatePledgePayload[]): Promise<{ success: boolean; count: number; message: string }> => {
-    const response = await api.post<{ success: boolean; count: number; message: string }>('/admin/bulkAddPledges', { pledges });
+  bulkImport: async (pledges: CreatePledgePayload[], projectId: string): Promise<{ success: boolean; count: number; message: string }> => {
+    const response = await api.post<{ success: boolean; count: number; message: string }>('/admin/bulkAddPledges', { 
+      pledges,
+      project_id: projectId 
+    });
     return response.data;
   },
 };

@@ -1,8 +1,11 @@
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useProject } from '@/context/ProjectContext';
+import { useLocation } from 'react-router-dom';
 import { Bell, Search, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ProjectSelector } from '@/components/ProjectSelector';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -10,6 +13,14 @@ interface TopbarProps {
 }
 
 export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, title }) => {
+  const { selectedProjectId, setSelectedProjectId } = useProject();
+  const location = useLocation();
+  
+  // Hide project selector on these pages
+  const hideProjectSelector = ['/admins', '/follow-ups', '/projects'].some(path => 
+    location.pathname.startsWith(path)
+  );
+
   return (
     <header className="sticky top-0 z-40 h-16 bg-card/80 backdrop-blur-sm border-b border-border">
       <div className="h-full px-4 lg:px-6 flex items-center justify-between">
@@ -30,6 +41,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, title }) => {
         </div>
 
         <div className="flex items-center gap-3">
+          {!hideProjectSelector && (
+            <ProjectSelector
+              selectedProjectId={selectedProjectId}
+              onProjectChange={setSelectedProjectId}
+            />
+          )}
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input

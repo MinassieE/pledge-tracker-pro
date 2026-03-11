@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ColumnDef } from '@tantml:react-table';
+import { ColumnDef } from '@tanstack/react-table';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/DataTable';
@@ -23,10 +23,10 @@ const AdminsList: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [formData, setFormData] = useState({ first_name: '', middle_name: '', email: '' });
 
-  // Fetch admins from backend
+  // Fetch admins from backend (fetch all without project filtering)
   const { data: admins = [], isLoading, error } = useQuery({
     queryKey: ['allAdmins'],
-    queryFn: adminsApi.getAll,
+    queryFn: () => adminsApi.getAll({ all: true }),
   });
 
   // Create mutation
@@ -48,6 +48,26 @@ const AdminsList: React.FC = () => {
       toast({
         title: 'Error',
         description: error?.response?.data?.message || 'Failed to create admin.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Update status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'inactive' }) =>
+      adminsApi.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allAdmins'] });
+      toast({
+        title: 'Success',
+        description: 'Admin status updated successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error?.response?.data?.message || 'Failed to update status.',
         variant: 'destructive',
       });
     },
@@ -97,14 +117,32 @@ const AdminsList: React.FC = () => {
       accessorKey: 'role',
       header: 'Role',
       cell: ({ row }) => {
-        const role = row.original.role;
+        const role = row.original.role as string;
+        const isSuperAdmin = role === 'superAdmin';
         return (
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            role === 'superAdmin' 
+            isSuperAdmin
               ? 'bg-primary/10 text-primary border border-primary/20' 
               : 'bg-info/10 text-info border border-info/20'
           }`}>
-            {role === 'superAdmin' ? 'Super Admin' : 'Admin'}
+            {isSuperAdmin ? 'Super Admin' : 'Admin'}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const isActive = status === 'active';
+        return (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            isActive
+              ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+              : 'bg-red-500/10 text-red-500 border border-red-500/20'
+          }`}>
+            {isActive ? 'Active' : 'Inactive'}
           </span>
         );
       },
@@ -120,20 +158,45 @@ const AdminsList: React.FC = () => {
     },
     {
       id: 'actions',
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled>
-              No actions available (endpoints missing)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      cell: ({ row }) => {
+        const role = row.original.role as string;
+        const isSuperAdmin = role === 'superAdmin';
+        
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isSuperAdmin ? (
+                <DropdownMenuItem disabled>
+                  Cannot deactivate Super Admin
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  {row.original.status === 'active' ? (
+                    <DropdownMenuItem
+                      onClick={() => updateStatusMutation.mutate({ id: row.original._id, status: 'inactive' })}
+                      className="text-destructive"
+                    >
+                      Deactivate
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => updateStatusMutation.mutate({ id: row.original._id, status: 'active' })}
+                      className="text-success"
+                    >
+                      Activate
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
     },
   ];
 

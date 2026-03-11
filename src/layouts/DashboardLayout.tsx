@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
   '/reports/collection': 'Collection Stats',
   '/reports/monthly': 'Monthly Reports',
   '/reports/performance': 'Performance Reports',
+  '/reports/custom': 'Custom Reports',
 };
 
 export const DashboardLayout: React.FC = () => {

@@ -21,8 +21,11 @@ interface UpdateStatusResponse {
 }
 
 export const followUpsApi = {
-  getAll: async (): Promise<FollowUpUser[]> => {
-    const response = await api.get<{ success: boolean; data: FollowUpUser[] }>('/admin/getAllFollowUps');
+  // Get all follow-ups
+  // Pass all=true to get all follow-ups without project filtering
+  getAll: async (params?: { all?: boolean }): Promise<FollowUpUser[]> => {
+    const queryParams = params?.all ? '?all=true' : '';
+    const response = await api.get<{ success: boolean; data: FollowUpUser[] }>(`/admin/getAllFollowUps${queryParams}`);
     return response.data.data || [];
   },
 

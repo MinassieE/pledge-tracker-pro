@@ -17,6 +17,7 @@ import { Pledge } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { useProject } from '@/context/ProjectContext';
 import {
   Select,
   SelectContent,
@@ -41,19 +42,22 @@ import {
 const COLORS = ['hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(199, 89%, 48%)', 'hsl(0, 84%, 60%)'];
 
 const CollectionStats: React.FC = () => {
+  const { selectedProjectId } = useProject();
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   // Fetch collection stats from backend
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
-    queryKey: ['collectionStats'],
+    queryKey: ['collectionStats', selectedProjectId],
     queryFn: reportsApi.getCollectionStats,
+    enabled: !!selectedProjectId,
   });
 
   // Fetch all pledges for additional calculations
   const { data: pledges = [] } = useQuery({
-    queryKey: ['allPledges'],
+    queryKey: ['allPledges', selectedProjectId],
     queryFn: pledgesApi.getAll,
+    enabled: !!selectedProjectId,
   });
 
   // Filter pledges based on time filter
