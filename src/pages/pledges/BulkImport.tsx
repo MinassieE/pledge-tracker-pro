@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Upload, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { toast } from '@/hooks/use-toast';
 import { pledgesApi } from '@/api/pledges';
+import { projectsApi } from '@/api/projects';
+import { useProject } from '@/context/ProjectContext';
 import * as XLSX from 'xlsx';
 
 interface ParsedPledge {
@@ -33,15 +43,30 @@ interface ValidationError {
 
 const BulkImport: React.FC = () => {
   const navigate = useNavigate();
+  const { selectedProjectId } = useProject();
+  const [selectedProject, setSelectedProject] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<ParsedPledge[]>([]);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isValidating, setIsValidating] = useState(false);
 
+  // Initialize selectedProject from context
+  React.useEffect(() => {
+    if (selectedProjectId && !selectedProject) {
+      setSelectedProject(selectedProjectId);
+    }
+  }, [selectedProjectId, selectedProject]);
+
+  // Fetch projects
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectsApi.getAll,
+  });
+
   const importMutation = useMutation({
-    mutationFn: async (pledges: ParsedPledge[]) => {
+    mutationFn: async (data: { pledges: ParsedPledge[]; projectId: string }) => {
       // Call bulk import endpoint
-      const response = await pledgesApi.bulkImport(pledges);
+      const response = await pledgesApi.bulkImport(data.pledges, data.projectId);
       return response;
     },
     onSuccess: (data) => {
@@ -173,6 +198,15 @@ const BulkImport: React.FC = () => {
   };
 
   const handleImport = () => {
+    if (!selectedProject) {
+      toast({
+        title: 'Project Required',
+        description: 'Please select a project before importing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (validationErrors.length > 0) {
       toast({
         title: 'Cannot Import',
@@ -191,7 +225,16 @@ const BulkImport: React.FC = () => {
       return;
     }
 
-    importMutation.mutate(parsedData);
+    // Remove project_id from individual pledges since we're sending it separately
+    const pledgesWithoutProjectId = parsedData.map(pledge => {
+      const { project_id, ...rest } = pledge as any;
+      return rest;
+    });
+
+    importMutation.mutate({ 
+      pledges: pledgesWithoutProjectId, 
+      projectId: selectedProject || selectedProjectId 
+    });
   };
 
   return (
@@ -230,6 +273,33 @@ const BulkImport: React.FC = () => {
           </ul>
           <p className="mt-3 text-warning">⚠️ All-or-Nothing: If any row has errors, no pledges will be imported.</p>
           <p className="mt-2 text-info">💡 Status Auto-Calculation: The system will automatically set status to "paid" (if amount_paid {'>='} promised_amount), "partial" (if 0 {'<'} amount_paid {'<'} promised_amount), or "notPaid" (if amount_paid = 0).</p>
+        </div>
+      </div>
+
+      {/* Project Selection */}
+      <div className="stat-card">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Select Project</h3>
+        <div className="space-y-2">
+          <Label>Project *</Label>
+          <Select
+            value={selectedProject}
+            onValueChange={setSelectedProject}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project._id} value={project._id}>
+                  {project.name}
+                  {project.status !== 'active' && ` (${project.status})`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!selectedProject && parsedData.length > 0 && (
+            <p className="text-sm text-destructive">Please select a project before importing</p>
+          )}
         </div>
       </div>
 

@@ -164,6 +164,16 @@ const Login: React.FC = () => {
             </Button>
           </form>
 
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => navigate('/forgot-password')}
+              className="text-sm text-primary hover:underline"
+            >
+              Forgot your password?
+            </button>
+          </div>
+
           <p className="mt-8 text-center text-sm text-muted-foreground">
             Having trouble logging in?{' '}
             <a href="#" className="text-primary hover:underline">

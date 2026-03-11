@@ -8,31 +8,62 @@ import {
   Clock,
   ArrowRight,
   Phone,
+  FolderKanban,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { pledgesApi } from '@/api/pledges';
+import { projectsApi } from '@/api/projects';
+import { useProject } from '@/context/ProjectContext';
 import { Pledge } from '@/types';
 
 const FollowUpDashboard: React.FC = () => {
+  const { selectedProjectId, setSelectedProjectId } = useProject();
+
+  // Fetch user's assigned projects to validate access
+  const { data: userProjects = [] } = useQuery({
+    queryKey: ['userProjects'],
+    queryFn: projectsApi.getAll,
+  });
+
+  // Clear selectedProjectId if user doesn't have access to it
+  React.useEffect(() => {
+    if (selectedProjectId && userProjects.length > 0) {
+      const hasAccess = userProjects.some(p => p._id === selectedProjectId);
+      if (!hasAccess) {
+        setSelectedProjectId(null);
+      }
+    }
+  }, [selectedProjectId, userProjects, setSelectedProjectId]);
+
+  // Fetch selected project details
+  const { data: selectedProject } = useQuery({
+    queryKey: ['project', selectedProjectId],
+    queryFn: () => projectsApi.getById(selectedProjectId!),
+    enabled: !!selectedProjectId && userProjects.some(p => p._id === selectedProjectId),
+  });
+
   // Fetch assigned pledges
   const { data: pledges = [], isLoading, error } = useQuery({
-    queryKey: ['myPledges'],
+    queryKey: ['myPledges', selectedProjectId],
     queryFn: pledgesApi.getMyPledges,
+    enabled: !!selectedProjectId,
   });
 
   // Fetch overdue pledges
   const { data: overduePledges = [] } = useQuery({
-    queryKey: ['overduePledges'],
+    queryKey: ['overduePledges', selectedProjectId],
     queryFn: pledgesApi.getOverdue,
+    enabled: !!selectedProjectId,
   });
 
   // Fetch due monthly pledges
   const { data: dueMonthlyPledges = [] } = useQuery({
-    queryKey: ['dueMonthlyPledges'],
+    queryKey: ['dueMonthlyPledges', selectedProjectId],
     queryFn: pledgesApi.getDueMonthly,
+    enabled: !!selectedProjectId,
   });
 
   // Calculate stats from fetched data
@@ -59,6 +90,17 @@ const FollowUpDashboard: React.FC = () => {
     );
   }
 
+  if (!selectedProjectId) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <FolderKanban className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Please select a project to view dashboard</p>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="text-center py-8">
@@ -74,6 +116,29 @@ const FollowUpDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 fade-in">
+      {/* Project Header */}
+      {selectedProject && (
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">{selectedProject.name}</h2>
+              {selectedProject.description && (
+                <p className="text-muted-foreground mt-1">{selectedProject.description}</p>
+              )}
+            </div>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              selectedProject.status === 'active'
+                ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                : selectedProject.status === 'inactive'
+                ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                : 'bg-red-500/10 text-red-500 border border-red-500/20'
+            }`}>
+              {selectedProject.status.charAt(0).toUpperCase() + selectedProject.status.slice(1)}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard

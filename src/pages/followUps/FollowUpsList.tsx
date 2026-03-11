@@ -17,16 +17,18 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { followUpsApi } from '@/api/followUps';
 import { FollowUpUser } from '@/types';
+import { useProject } from '@/context/ProjectContext';
 
 const FollowUpsList: React.FC = () => {
   const queryClient = useQueryClient();
+  const { selectedProjectId } = useProject();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [formData, setFormData] = useState({ first_name: '', middle_name: '', email: '' });
 
-  // Fetch follow-ups from backend
+  // Fetch follow-ups from backend (fetch all without project filtering)
   const { data: followUps = [], isLoading, error } = useQuery({
     queryKey: ['allFollowUps'],
-    queryFn: followUpsApi.getAll,
+    queryFn: () => followUpsApi.getAll({ all: true }),
   });
 
   // Create mutation

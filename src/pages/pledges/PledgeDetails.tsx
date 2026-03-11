@@ -23,6 +23,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { toast } from '@/hooks/use-toast';
 import { pledgesApi, UpdatePledgePayload } from '@/api/pledges';
 import { useAuth } from '@/context/AuthContext';
+import { useProject } from '@/context/ProjectContext';
 import { Pledge, Payment } from '@/types';
 import {
   Select,
@@ -37,6 +38,7 @@ const PledgeDetails: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { selectedProjectId } = useProject();
   const isFollowUp = user?.role === 'followUp';
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -69,12 +71,12 @@ const PledgeDetails: React.FC = () => {
 
   // Fetch follow-ups for assignment (only for admin/superAdmin)
   const { data: followUps = [] } = useQuery({
-    queryKey: ['allFollowUps'],
+    queryKey: ['allFollowUps', selectedProjectId],
     queryFn: async () => {
       const { followUpsApi } = await import('@/api/followUps');
       return followUpsApi.getAll();
     },
-    enabled: !isFollowUp,
+    enabled: !isFollowUp && !!selectedProjectId,
   });
 
   // Update mutation - use different endpoint based on role

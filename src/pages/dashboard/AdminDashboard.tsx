@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Plus,
   Clock,
+  FolderKanban,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/button';
@@ -16,31 +17,46 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { pledgesApi } from '@/api/pledges';
 import { followUpsApi } from '@/api/followUps';
+import { projectsApi } from '@/api/projects';
+import { useProject } from '@/context/ProjectContext';
 import { Pledge } from '@/types';
 
 const AdminDashboard: React.FC = () => {
-  // Fetch all pledges
+  const { selectedProjectId } = useProject();
+
+  // Fetch selected project details
+  const { data: selectedProject } = useQuery({
+    queryKey: ['project', selectedProjectId],
+    queryFn: () => projectsApi.getById(selectedProjectId!),
+    enabled: !!selectedProjectId,
+  });
+
+  // Fetch all pledges (backend filters by project)
   const { data: pledges = [], isLoading: pledgesLoading } = useQuery({
-    queryKey: ['allPledges'],
+    queryKey: ['allPledges', selectedProjectId],
     queryFn: pledgesApi.getAll,
+    enabled: !!selectedProjectId,
   });
 
   // Fetch follow-ups
   const { data: followUps = [] } = useQuery({
-    queryKey: ['allFollowUps'],
+    queryKey: ['allFollowUps', selectedProjectId],
     queryFn: followUpsApi.getAll,
+    enabled: !!selectedProjectId,
   });
 
   // Fetch overdue pledges
   const { data: overduePledges = [] } = useQuery({
-    queryKey: ['overduePledges'],
+    queryKey: ['overduePledges', selectedProjectId],
     queryFn: pledgesApi.getOverdue,
+    enabled: !!selectedProjectId,
   });
 
   // Fetch due monthly pledges
   const { data: dueMonthlyPledges = [] } = useQuery({
-    queryKey: ['dueMonthlyPledges'],
+    queryKey: ['dueMonthlyPledges', selectedProjectId],
     queryFn: pledgesApi.getDueMonthly,
+    enabled: !!selectedProjectId,
   });
 
   const formatCurrency = (value: number, currency: string = 'ETB') => {
@@ -87,8 +103,42 @@ const AdminDashboard: React.FC = () => {
     );
   }
 
+  if (!selectedProjectId) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <FolderKanban className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Please select a project to view dashboard</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 fade-in">
+      {/* Project Header */}
+      {selectedProject && (
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">{selectedProject.name}</h2>
+              {selectedProject.description && (
+                <p className="text-muted-foreground mt-1">{selectedProject.description}</p>
+              )}
+            </div>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              selectedProject.status === 'active'
+                ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                : selectedProject.status === 'inactive'
+                ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                : 'bg-red-500/10 text-red-500 border border-red-500/20'
+            }`}>
+              {selectedProject.status.charAt(0).toUpperCase() + selectedProject.status.slice(1)}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard

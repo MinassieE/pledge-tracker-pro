@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ColumnDef } from '@tanstack/react-table';
-import { Plus, Eye, Edit, Trash2, MoreHorizontal, Upload, UserPlus } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, MoreHorizontal, Upload, UserPlus, UserX, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/DataTable';
@@ -29,6 +29,8 @@ import { pledgesApi } from '@/api/pledges';
 import { followUpsApi } from '@/api/followUps';
 import { Pledge, PledgeStatus } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { useProject } from '@/context/ProjectContext';
+import { exportPledgesToExcel, exportPledgesToPDF } from '@/utils/exportUtils';
 
 const PledgesList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<PledgeStatus | 'all'>('all');
@@ -43,6 +45,7 @@ const PledgesList: React.FC = () => {
   const [selectedFollowUpForBulk, setSelectedFollowUpForBulk] = useState('');
   const location = useLocation();
   const { role } = useAuth();
+  const { selectedProjectId } = useProject();
   const queryClient = useQueryClient();
 
   // Determine which API to call based on route and role
@@ -53,15 +56,16 @@ const PledgesList: React.FC = () => {
 
   // Fetch pledges based on the route
   const { data: pledges = [], isLoading, error } = useQuery({
-    queryKey: isMyPledges ? ['myPledges'] : isDueMonthly ? ['dueMonthlyPledges'] : isOverdue ? ['overduePledges'] : ['allPledges'],
+    queryKey: isMyPledges ? ['myPledges', selectedProjectId] : isDueMonthly ? ['dueMonthlyPledges', selectedProjectId] : isOverdue ? ['overduePledges', selectedProjectId] : ['allPledges', selectedProjectId],
     queryFn: isMyPledges ? pledgesApi.getMyPledges : isDueMonthly ? pledgesApi.getDueMonthly : isOverdue ? pledgesApi.getOverdue : pledgesApi.getAll,
+    enabled: !!selectedProjectId,
   });
 
   // Fetch follow-ups for filter dropdown (only for admin/superAdmin on All Pledges page)
   const { data: followUps = [] } = useQuery({
-    queryKey: ['allFollowUps'],
+    queryKey: ['allFollowUps', selectedProjectId],
     queryFn: followUpsApi.getAll,
-    enabled: isAllPledges && (role === 'admin' || role === 'superAdmin'),
+    enabled: isAllPledges && (role === 'admin' || role === 'superAdmin') && !!selectedProjectId,
   });
 
   // Delete mutation
@@ -112,6 +116,26 @@ const PledgesList: React.FC = () => {
     },
   });
 
+  // Unassign mutation
+  const unassignMutation = useMutation({
+    mutationFn: (pledgeId: string) => pledgesApi.unassignFromFollowUp(pledgeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allPledges'] });
+      queryClient.invalidateQueries({ queryKey: ['myPledges'] });
+      toast({
+        title: 'Success',
+        description: 'Pledge unassigned from follow-up successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error?.response?.data?.message || 'Failed to unassign pledge.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleDeleteClick = (pledge: Pledge) => {
     setPledgeToDelete(pledge);
     setIsDeleteModalOpen(true);
@@ -121,6 +145,42 @@ const PledgesList: React.FC = () => {
     if (pledgeToDelete?._id) {
       deleteMutation.mutate(pledgeToDelete._id);
     }
+  };
+
+  const handleUnassignPledge = (pledgeId: string) => {
+    unassignMutation.mutate(pledgeId);
+  };
+
+  const handleExportExcel = () => {
+    if (filteredPledges.length === 0) {
+      toast({
+        title: 'No Data',
+        description: 'No pledges to export.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    exportPledgesToExcel(filteredPledges, 'pledges');
+    toast({
+      title: 'Success',
+      description: 'Pledges exported to Excel successfully.',
+    });
+  };
+
+  const handleExportPDF = () => {
+    if (filteredPledges.length === 0) {
+      toast({
+        title: 'No Data',
+        description: 'No pledges to export.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    exportPledgesToPDF(filteredPledges, 'pledges');
+    toast({
+      title: 'Success',
+      description: 'Pledges exported to PDF successfully.',
+    });
   };
 
   const handleBulkAssignClick = () => {
@@ -257,36 +317,55 @@ const PledgesList: React.FC = () => {
     },
     {
       id: 'actions',
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link to={`/pledges/${row.original._id}`} className="flex items-center">
-                <Eye className="h-4 w-4 mr-2" />
-                View Details
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={`/pledges/${row.original._id}/edit`} className="flex items-center">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              className="text-destructive focus:text-destructive"
-              onClick={() => handleDeleteClick(row.original)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      cell: ({ row }) => {
+        const assignedFollowUp = row.original.assigned_followup || row.original.assigned_follow_up || row.original.assignedFollowUp;
+        const hasAssignedFollowUp = !!assignedFollowUp;
+        
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link to={`/pledges/${row.original._id}`} className="flex items-center">
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Details
+                </Link>
+              </DropdownMenuItem>
+              {(role === 'admin' || role === 'superAdmin') && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link to={`/pledges/${row.original._id}/edit`} className="flex items-center">
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Link>
+                  </DropdownMenuItem>
+                  {isAllPledges && hasAssignedFollowUp && (
+                    <DropdownMenuItem 
+                      onClick={() => handleUnassignPledge(row.original._id)}
+                    >
+                      <UserX className="h-4 w-4 mr-2" />
+                      Unassign Follow-Up
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
+              {role === 'superAdmin' && (
+                <DropdownMenuItem 
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => handleDeleteClick(row.original)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
     },
   ];
 
@@ -363,19 +442,31 @@ const PledgesList: React.FC = () => {
           )}
         </div>
         {role !== 'followUp' && !isDueMonthly && !isOverdue && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {selectedPledges.length > 0 && (
               <Button variant="secondary" onClick={handleBulkAssignClick}>
                 <UserPlus className="h-4 w-4 mr-2" />
                 Assign Selected ({selectedPledges.length})
               </Button>
             )}
-            <Link to="/pledges/bulk-import">
-              <Button variant="outline">
-                <Upload className="h-4 w-4 mr-2" />
-                Bulk Import
-              </Button>
-            </Link>
+            {role === 'superAdmin' && (
+              <>
+                <Link to="/pledges/bulk-import">
+                  <Button variant="outline">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Bulk Import
+                  </Button>
+                </Link>
+                <Button variant="outline" onClick={handleExportExcel}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
+                <Button variant="outline" onClick={handleExportPDF}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export PDF
+                </Button>
+              </>
+            )}
             <Link to="/pledges/create">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
